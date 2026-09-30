@@ -11,6 +11,7 @@ export type ErrorCode =
   | "project_exists"
   | "sql_error"
   | "too_large"
+  | "method_not_allowed"
   | "internal";
 
 const STATUS: Record<ErrorCode, number> = {
@@ -22,6 +23,7 @@ const STATUS: Record<ErrorCode, number> = {
   project_exists: 409,
   sql_error: 400,
   too_large: 413,
+  method_not_allowed: 405,
   internal: 500,
 };
 

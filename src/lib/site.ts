@@ -74,11 +74,11 @@ export async function syncSite(opts: {
     const put = new Map<string, FileMeta>();
     let received = 0;
     for await (const entry of readTar(gunzipStream(body))) {
-      received += entry.bytes.length;
       if (entry.path === SYNC_META_ENTRY) {
         Object.assign(meta, JSON.parse(new TextDecoder().decode(entry.bytes)));
         continue;
       }
+      received += entry.bytes.length;
       const rel = relPathFromString(entry.path);
       const dest = joinUnder(inDir, rel);
       await ensureParent(dest);
