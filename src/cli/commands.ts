@@ -2,6 +2,7 @@
 //
 // Commands:
 //   create      create the project and write ./.env
+//   info        show resolved config and project status (read-only)
 //   upload      mirror a local directory to the project site (delta upload)
 //   db-run      run sql against the project db
 //   download-db pull the sqlite database
@@ -33,6 +34,7 @@ export function helpText(): string {
 
 usage:
   slopserver create [--description <text>]     create the project, write ./.env
+  slopserver info                              show config and project status
   slopserver upload <dir>                      mirror <dir> to the project site
   slopserver db-run "<query>"                  run sql, print json result
   slopserver download-db <path.sqlite>         download the sqlite database
@@ -147,7 +149,8 @@ interface LocalFile {
 }
 
 // Walk a local directory, yielding site-relative paths with hashes. root stays
-// fixed, prefix accumulates, so paths never double up.
+// fixed, prefix accumulates, so paths never double up. Dot-prefixed entries
+// stay local: .env, .git and friends never go online.
 async function walkLocal(root: string, prefix = ""): Promise<LocalFile[]> {
   const out: LocalFile[] = [];
   const current = prefix ? `${root}/${prefix}` : root;
@@ -155,6 +158,7 @@ async function walkLocal(root: string, prefix = ""): Promise<LocalFile[]> {
   for await (const e of Deno.readDir(current)) entries.push(e);
   entries.sort((a, b) => (a.name < b.name ? -1 : 1));
   for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
     const path = prefix ? `${prefix}/${e.name}` : e.name;
     if (e.isDirectory) {
       out.push(...await walkLocal(root, path));
@@ -181,6 +185,43 @@ async function cmdCreate(url: string, opts: Options): Promise<void> {
   });
   print(`created ${url}/${created.project.slug}/`);
   if (written.length > 0) print(`wrote ${written.join(", ")} to ./.env`);
+}
+
+// Smoke test for a deployment: where do url and slug come from, is the server
+// reachable, does the project exist. Read-only, so it is safe to run anywhere.
+async function cmdInfo(url: string, opts: Options): Promise<void> {
+  const urlSource = opts.url ? "flag"
+    : Deno.env.get("SLOPSERVER_URL") ? "env"
+    : "default";
+  const list = await apiJson(url, "GET", "/api/") as {
+    projects: {
+      slug: string;
+      created_at: string;
+      site_bytes: number;
+      db_bytes: number;
+      requests: number;
+    }[];
+  };
+  print(`url       ${url} (${urlSource})`);
+  print(`server    ok, ${list.projects.length} projects`);
+
+  const slug = opts.slug ?? Deno.env.get("SLOPSERVER_SLUG");
+  if (!slug) return;
+  print(`slug      ${slug} (${opts.slug ? "flag" : "env"})`);
+  const project = list.projects.find((p) => p.slug === slug);
+  if (!project) {
+    throw new SlopError("project_not_found", `no project '${slug}' on ${url}`);
+  }
+  const { files } = await (await api(url, "GET", `/api/${slug}/manifest`))
+    .json() as { files: Record<string, { size: number }> };
+  const sizes = Object.values(files);
+  print(`project   ${url}/${slug}/`);
+  print(`created   ${project.created_at}`);
+  print(`site      ${sizes.length} files, ${
+    sizes.reduce((a, f) => a + f.size, 0)
+  } bytes`);
+  print(`db        ${project.db_bytes} bytes`);
+  print(`requests  ${project.requests}`);
 }
 
 async function cmdUpload(url: string, opts: Options): Promise<void> {
@@ -302,6 +343,9 @@ export async function runCli(argv: string[]): Promise<number> {
     switch (command) {
       case "create":
         await cmdCreate(url, opts);
+        break;
+      case "info":
+        await cmdInfo(url, opts);
         break;
       case "upload":
         await cmdUpload(url, opts);

@@ -40,12 +40,17 @@ const { rows } = await (await fetch("/api/project-x/query", {
 | command                         | what it does                                              |
 | ------------------------------- | --------------------------------------------------------- |
 | `create [--description <text>]` | create the project, pin slug + url in ./.env              |
-| `upload <dir>`                  | mirror `<dir>` to the site; only changed files are sent   |
+| `info`                          | show resolved config and project status (read-only)       |
+| `upload <dir>`                  | mirror `<dir>` to the site; delta upload, no dotfiles     |
 | `db-run "<query>"`              | run sql (multi-statement scripts fine), print json result |
 | `download-db <path.sqlite>`     | pull the sqlite database                                  |
 | `download <path.tar.gz>`        | pull the online files                                     |
 
 Flags on every command: `--slug <slug>`, `--url <url>`.
+
+The CLI is deliberately small: no list, no delete. A CLI session can only
+ever touch the project pinned in ./.env, so an agent working with it cannot
+damage other projects. Deleting a project is a dashboard button.
 
 ## Config
 
@@ -53,8 +58,9 @@ Slug and url resolution: flag > environment > ./.env > default url
 `https://slop.tobtobxx.net`. Already-set environment variables beat
 ./.env. `create` appends `SLOPSERVER_SLUG` and `SLOPSERVER_URL` to ./.env.
 
-`upload` mirrors the directory exactly: everything in it goes online, everything
-missing gets deleted (including dotfiles like `.env`).
+`upload` mirrors the directory: everything in it goes online, everything
+missing gets deleted. Dot-prefixed files and directories (`.env`, `.git`, …)
+are never uploaded.
 
 `slopserver-host` flags: `--data <dir>` (required), `--host <host>` (default
 `127.0.0.1`), `--port <port>` (default `8787`). Projects and their databases

@@ -143,6 +143,49 @@ Deno.test("cli: upload reads slug and url from .env", async () => {
   });
 });
 
+Deno.test("cli: upload ignores dotfiles and dot-directories", async () => {
+  await withCli(async (url, work) => {
+    await cli("create", "--url", url, "--slug", "app");
+    await Deno.mkdir(`${work}/site/sub`, { recursive: true });
+    await Deno.mkdir(`${work}/site/.git`, { recursive: true });
+    await Deno.writeTextFile(`${work}/site/index.html`, "hello");
+    await Deno.writeTextFile(`${work}/site/.env`, "SLOPSERVER_SLUG=app");
+    await Deno.writeTextFile(`${work}/site/sub/.hidden`, "junk");
+    await Deno.writeTextFile(`${work}/site/sub/ok.txt`, "kept");
+    await Deno.writeTextFile(`${work}/site/.git/config`, "junk");
+
+    const res = await cli("upload", "site");
+    assertEquals(res.code, 0, res.out);
+    assertEquals(res.out.includes("uploaded 2 files"), true, res.out);
+
+    const manifest = await (await fetch(`${url}/api/app/manifest`)).json() as {
+      files: Record<string, unknown>;
+    };
+    assertEquals(Object.keys(manifest.files).sort(), [
+      "index.html",
+      "sub/ok.txt",
+    ]);
+  });
+});
+
+Deno.test("cli: info reports config and project status", async () => {
+  await withCli(async (url, work) => {
+    await cli("create", "--url", url, "--slug", "app");
+    const ok = await cli("info", "--url", url);
+    assertEquals(ok.code, 0, ok.out);
+    assertEquals(ok.out.includes(`url       ${url} (flag)`), true, ok.out);
+    assertEquals(ok.out.includes("server    ok, 1 projects"), true, ok.out);
+    assertEquals(ok.out.includes("slug      app (env)"), true, ok.out);
+    assertEquals(ok.out.includes(`project   ${url}/app/`), true, ok.out);
+    assertEquals(ok.out.includes("site      0 files, 0 bytes"), true, ok.out);
+    assertEquals(ok.out.includes("requests"), true, ok.out);
+
+    const missing = await cli("info", "--url", url, "--slug", "nope");
+    assertEquals(missing.code, 1);
+    assertEquals(missing.out.includes("no project 'nope'"), true, missing.out);
+  });
+});
+
 Deno.test("cli: db-run executes scripts and prints json", async () => {
   await withCli(async (url) => {
     await cli("create", "--url", url, "--slug", "app");
@@ -194,11 +237,7 @@ Deno.test("cli: download and download-db pull real files", async () => {
       files[e.path] = new TextDecoder().decode(e.bytes);
     }
     assertEquals(files["f.txt"], "content");
-    assertEquals(
-      files[".env"] !== undefined,
-      true,
-      "upload mirrors the directory as-is",
-    );
+    assertEquals(files[".env"], undefined, "dotfiles never go online");
   });
 });
 
