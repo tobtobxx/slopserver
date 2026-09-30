@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>slopserver dashboard</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 60rem; margin: 2.5rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  small, footer { color: #777; }
+  code { background: #f2f2f2; padding: .1rem .3rem; border-radius: 3px; }
+  #banner { background: #fee; border: 1px solid #c66; color: #900; padding: .5rem .8rem; border-radius: 4px; margin: 1rem 0; }
+  .cards { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .card { flex: 1 1 8rem; border: 1px solid #ddd; border-radius: 6px; padding: .7rem .9rem; }
+  .card .num { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+  .card .lbl { color: #777; font-size: .85rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid #eee; }
+  th { color: #666; font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.project { cursor: pointer; }
+  tr.project:hover { background: #f6f8fa; }
+  tr.project.open { background: #eef4fd; }
+  #detail { border: 1px solid #ddd; border-radius: 6px; padding: .8rem 1rem; margin-top: .6rem; }
+  #detail table { margin: .4rem 0 1rem; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monospace; font-size: .85rem; }
+  button { font: inherit; padding: .25rem .8rem; }
+  button.del { font-size: .78rem; padding: .1rem .5rem; color: #900; border: 1px solid #c66; background: #fee; border-radius: 4px; cursor: pointer; }
+  .hist { display: flex; gap: 2rem; align-items: flex-end; margin: .5rem 0; }
+  .err { color: #900; }
+  .tablelist { font-family: ui-monospace, monospace; font-size: .82rem; }
+  .tablelist summary { cursor: pointer; }
+  footer { margin-top: 2.5rem; }
+</style>
+</head>
+<body>
+<h1>slopserver dashboard</h1>
+<p>Everything on this page is read live from the slopserver JSON API. This
+project also records a stats snapshot into its own database on every page load
+(via <code>/api/dashboard/exec</code>), so the history below grows over time.</p>
+
+<div id="banner" hidden></div>
+
+<h2>Totals</h2>
+<div class="cards" id="cards"></div>
+
+<h2>History <small>(snapshots recorded by this page)</small></h2>
+<div class="hist" id="hist"></div>
+
+<h2>Projects</h2>
+<table>
+  <thead><tr>
+    <th>slug</th><th>description</th><th>created</th>
+    <th class="num">site</th><th class="num">db</th><th class="num">requests</th><th></th>
+  </tr></thead>
+  <tbody id="projects"></tbody>
+</table>
+<div id="detail" hidden></div>
+
+<footer>api: <code>/api/</code> &middot; this project: <code>/dashboard/</code></footer>
+
+<script>
+"use strict";
+const SLUG = location.pathname.split("/").filter(Boolean)[0] || "dashboard";
+const $ = (s) => document.querySelector(s);
+
+// --- formatting ---
+function fmtBytes(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1024 ** 2) return (n / 1024).toFixed(1) + " kB";
+  if (n < 1024 ** 3) return (n / 1024 ** 2).toFixed(1) + " MB";
+  return (n / 1024 ** 3).toFixed(2) + " GB";
+}
+const fmtInt = (n) => Number(n).toLocaleString();
+function fmtDate(s) {
+  const d = new Date(s);
+  return isNaN(d) ? s : d.toLocaleString();
+}
+
+// --- api ---
+async function api(path, method = "GET", body) {
+  const res = await fetch(path, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(payload?.error?.message ?? `${res.status} ${res.statusText}`);
+  return payload;
+}
+
+function banner(msg) {
+  const el = $("#banner");
+  if (!msg) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = msg;
+}
+
+// --- rendering ---
+function renderCards(p) {
+  const sum = (f) => p.reduce((a, x) => a + Number(x[f] ?? 0), 0);
+  const t = {
+    projects: p.length,
+    site_bytes: sum("site_bytes"),
+    db_bytes: sum("db_bytes"),
+    requests: sum("requests"),
+  };
+  $("#cards").innerHTML = [
+    ["Projects", fmtInt(t.projects)],
+    ["Site bytes", fmtBytes(t.site_bytes)],
+    ["DB bytes", fmtBytes(t.db_bytes)],
+    ["Requests", fmtInt(t.requests)],
+  ].map(([lbl, num]) =>
+    `<div class="card"><div class="num">${num}</div><div class="lbl">${lbl}</div></div>`
+  ).join("");
+  return t;
+}
+
+function sparkline(values, label) {
+  const w = 220, h = 40;
+  if (values.length < 2) return `<div><small>${label}: need 2+ snapshots</small></div>`;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || 1;
+  const pts = values.map((v, i) =>
+    `${(i / (values.length - 1) * w).toFixed(1)},${(h - 2 - (v - min) / span * (h - 4)).toFixed(1)}`
+  ).join(" ");
+  return `<div><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="1.5"/>
+  </svg><br><small>${label}: ${fmtInt(values[0])} &rarr; ${fmtInt(values[values.length - 1])}</small></div>`;
+}
+
+function renderHistory(rows) {
+  if (!rows.length) {
+    $("#hist").innerHTML = "<small>no snapshots yet</small>";
+    return;
+  }
+  $("#hist").innerHTML =
+    sparkline(rows.map((r) => r.requests), "requests") +
+    sparkline(rows.map((r) => r.site_bytes + r.db_bytes), "bytes") +
+    `<div><small>${rows.length} snapshots<br>first ${fmtDate(rows[0].ts)}</small></div>`;
+}
+
+function renderProjects(p) {
+  $("#projects").innerHTML = p.map((x) => `
+    <tr class="project" data-slug="${x.slug}">
+      <td><code>${x.slug}</code></td>
+      <td>${x.description || "<small>—</small>"}</td>
+      <td>${fmtDate(x.created_at)}</td>
+      <td class="num">${fmtBytes(x.site_bytes)}</td>
+      <td class="num">${fmtBytes(x.db_bytes)}</td>
+      <td class="num">${fmtInt(x.requests)}</td>
+      <td><button class="del" data-slug="${x.slug}">delete</button></td>
+    </tr>`).join("") || `<tr><td colspan="7"><small>no projects</small></td></tr>`;
+}
+
+// --- per-project detail: schema + read-only query runner ---
+async function openDetail(slug) {
+  const el = $("#detail");
+  el.hidden = false;
+  el.innerHTML = `<strong><code>${slug}</code></strong> &middot;
+    <a href="/${slug}/">open site</a> &middot; <a href="/api/${slug}/manifest">manifest</a>
+    <div id="schema"><small>loading schema…</small></div>
+    <form id="qform">
+      <textarea id="qsql" rows="2">SELECT name FROM sqlite_master WHERE type = 'table'</textarea>
+      <button>run query</button> <small>read-only (SELECT/WITH/EXPLAIN), via /api/${slug}/query</small>
+    </form>
+    <div id="qresult"></div>`;
+  try {
+    const { tables } = await api(`/api/${slug}/schema`);
+    $("#schema").innerHTML = tables.length
+      ? `<p><small>${tables.length} table(s)</small></p><div class="tablelist">` +
+        tables.map((t) => `<details><summary>${t.name}</summary><pre>${t.sql}</pre></details>`).join("") +
+        `</div>`
+      : `<p><small>no tables</small></p>`;
+  } catch (e) {
+    $("#schema").innerHTML = `<p class="err">schema: ${e.message}</p>`;
+  }
+  $("#qform").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const sql = $("#qsql").value.trim();
+    if (!/^(select|with|explain)\b/i.test(sql)) {
+      $("#qresult").innerHTML = `<p class="err">only SELECT/WITH/EXPLAIN here</p>`;
+      return;
+    }
+    $("#qresult").innerHTML = "<small>running…</small>";
+    try {
+      const { columns, rows } = await api(`/api/${slug}/query`, "POST", { sql });
+      if (!rows.length) { $("#qresult").innerHTML = "<p><small>0 rows</small></p>"; return; }
+      $("#qresult").innerHTML = `<table><thead><tr>${columns.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+        <tbody>${rows.map((r) => `<tr>${columns.map((c) => `<td>${r[c] ?? "<small>NULL</small>"}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+    } catch (e) {
+      $("#qresult").innerHTML = `<p class="err">${e.message}</p>`;
+    }
+  });
+}
+
+// --- main: list projects, record a snapshot, read history back ---
+async function main() {
+  try {
+    const { projects } = await api("/api/");
+    const totals = renderCards(projects);
+    renderProjects(projects);
+
+    document.querySelectorAll("tr.project").forEach((row) =>
+      row.addEventListener("click", () => {
+        document.querySelectorAll("tr.project").forEach((r) => r.classList.remove("open"));
+        row.classList.add("open");
+        openDetail(row.dataset.slug);
+      })
+    );
+
+    document.querySelectorAll("button.del").forEach((btn) =>
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const slug = btn.dataset.slug;
+        if (!confirm(`Delete '${slug}'? Site and database are gone for good.`)) return;
+        try {
+          await api(`/api/${slug}`, "DELETE");
+          location.reload();
+        } catch (e) {
+          banner(e.message);
+        }
+      })
+    );
+
+    await api(`/api/${SLUG}/exec`, "POST", {
+      sql: "INSERT INTO snapshots (ts, projects, site_bytes, db_bytes, requests) VALUES (?, ?, ?, ?, ?)",
+      params: [new Date().toISOString(), totals.projects, totals.site_bytes, totals.db_bytes, totals.requests],
+    });
+    const { rows } = await api(`/api/${SLUG}/query`, "POST", {
+      sql: "SELECT ts, projects, site_bytes, db_bytes, requests FROM snapshots ORDER BY id",
+    });
+    renderHistory(rows);
+  } catch (e) {
+    banner(e.message);
+  }
+}
+main();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@ client. Zero remote imports — everything runs on Deno builtins plus
 | file                                      | what                                                                             |
 | ----------------------------------------- | -------------------------------------------------------------------------------- |
 | `src/host/server.ts`                      | routing, static serving, index page, API handlers                                |
-| `src/cli/commands.ts`                     | the five CLI commands, local dir walking, arg parsing                            |
+| `src/cli/commands.ts`                     | the CLI commands, local dir walking, arg parsing                                 |
 | `src/lib/registry.ts`                     | `slopserver.db`: projects, file manifest (sha256 + size), daily request counters |
 | `src/lib/projectdb.ts`                    | per-project SQLite: query/exec/batch/schema, WAL, codec hookup                   |
 | `src/lib/site.ts`                         | delta sync (stage + swap), site export                                           |
@@ -21,6 +21,7 @@ client. Zero remote imports — everything runs on Deno builtins plus
 | `src/lib/config.ts`, `src/lib/envfile.ts` | slug/url resolution, .env load/append                                            |
 | `src/lib/errors.ts`                       | `SlopError` codes → status + JSON envelope                                       |
 | `src/lib/gzip.ts`, `hash.ts`, `binary.ts` | gzip streams, streaming sha256, buffered stream reads                            |
+| `dashboard/index.html`                    | admin dashboard, itself a slopserver project (`cd dashboard && nix run ..#slopserver -- upload .`) |
 
 ## Data layout (`--data`)
 

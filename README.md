@@ -8,6 +8,8 @@ tailnet, with HTTPS from a reverse proxy.
   `/api/`, project index at `/`.
 - `slopserver` — the CLI. Creates projects, uploads site files (delta upload),
   runs SQL, downloads files/db.
+- `dashboard/` — the admin dashboard, itself a slopserver project. Deploy with
+  `cd dashboard && nix run ..#slopserver -- upload .`
 
 ## Quickstart
 
