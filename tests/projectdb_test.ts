@@ -36,7 +36,10 @@ Deno.test("projectdb: exec reports changes and rowid", () => {
     changes: 1,
     last_insert_rowid: 1,
   });
-  assertEquals(db.exec("UPDATE t SET b = 'q'"), { changes: 1, last_insert_rowid: 1 });
+  assertEquals(db.exec("UPDATE t SET b = 'q'"), {
+    changes: 1,
+    last_insert_rowid: 1,
+  });
   db.close();
 });
 
@@ -70,14 +73,20 @@ Deno.test("projectdb: huge integers become strings", () => {
 Deno.test("projectdb: single statement enforcement", () => {
   const db = newDb();
   assertThrows(() => db.query("SELECT 1; SELECT 2"), "expected one statement");
-  assertThrows(() => db.exec("SELECT 1; DROP TABLE t"), "expected one statement");
+  assertThrows(
+    () => db.exec("SELECT 1; DROP TABLE t"),
+    "expected one statement",
+  );
   assertEquals(db.query("SELECT 1 AS one;").rows, [{ one: 1 }]);
   db.close();
 });
 
 Deno.test("projectdb: sql errors are sql_error", () => {
   const db = newDb();
-  const e = assertThrows(() => db.query("SELECT * FROM missing")) as { code: string; status: number };
+  const e = assertThrows(() => db.query("SELECT * FROM missing")) as {
+    code: string;
+    status: number;
+  };
   assertEquals(e.code, "sql_error");
   assertEquals(e.status, 400);
   db.close();
@@ -100,10 +109,12 @@ Deno.test("projectdb: batch mixes query and exec, commits atomically", () => {
 
 Deno.test("projectdb: batch rolls back on error", () => {
   const db = newDb();
-  assertThrows(() => db.batch([
-    { sql: "INSERT INTO t VALUES (1, 'a')" },
-    { sql: "SELECT * FROM missing" },
-  ]));
+  assertThrows(() =>
+    db.batch([
+      { sql: "INSERT INTO t VALUES (1, 'a')" },
+      { sql: "SELECT * FROM missing" },
+    ])
+  );
   assertEquals(db.query("SELECT count(*) AS c FROM t").rows, [{ c: 0 }]);
   assertThrows(() => db.batch([]), "empty batch");
   db.close();

@@ -14,9 +14,14 @@ Deno.test("registry: create, list, get, delete projects", () => {
   assertEquals(reg.getProject("alpha")?.description, "first project");
   assertEquals(reg.getProject("nope"), null);
 
-  const e = assertThrows(() => reg.createProject("alpha", "")) as { code: string };
+  const e = assertThrows(() => reg.createProject("alpha", "")) as {
+    code: string;
+  };
   assertEquals(e.code, "project_exists");
-  assertEquals((assertThrows(() => reg.createProject("api", "")) as { code: string }).code, "reserved_slug");
+  assertEquals(
+    (assertThrows(() => reg.createProject("api", "")) as { code: string }).code,
+    "reserved_slug",
+  );
 
   reg.deleteProject("alpha");
   assertEquals(reg.listProjects().map((p) => p.slug), ["beta"]);
@@ -26,16 +31,25 @@ Deno.test("registry: create, list, get, delete projects", () => {
 Deno.test("registry: manifest replace is transactional", () => {
   const reg = newRegistry();
   reg.createProject("alpha", "");
-  reg.setManifest("alpha", new Map([
-    ["index.html", { hash: "aa", size: 10 }],
-    ["app.js", { hash: "bb", size: 20 }],
-  ]));
-  assertEquals(reg.getManifest("alpha"), new Map([
-    ["index.html", { hash: "aa", size: 10 }],
-    ["app.js", { hash: "bb", size: 20 }],
-  ]));
+  reg.setManifest(
+    "alpha",
+    new Map([
+      ["index.html", { hash: "aa", size: 10 }],
+      ["app.js", { hash: "bb", size: 20 }],
+    ]),
+  );
+  assertEquals(
+    reg.getManifest("alpha"),
+    new Map([
+      ["index.html", { hash: "aa", size: 10 }],
+      ["app.js", { hash: "bb", size: 20 }],
+    ]),
+  );
   reg.setManifest("alpha", new Map([["app.js", { hash: "cc", size: 25 }]]));
-  assertEquals(reg.getManifest("alpha"), new Map([["app.js", { hash: "cc", size: 25 }]]));
+  assertEquals(
+    reg.getManifest("alpha"),
+    new Map([["app.js", { hash: "cc", size: 25 }]]),
+  );
   reg.close();
 });
 

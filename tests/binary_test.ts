@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects, assertThrows } from "./_assert.ts";
+import { assertEquals, assertRejects } from "./_assert.ts";
 import { ByteReader } from "../src/lib/binary.ts";
 
 function streamOf(...chunks: Uint8Array[]): ReadableStream<Uint8Array> {
@@ -11,7 +11,9 @@ function streamOf(...chunks: Uint8Array[]): ReadableStream<Uint8Array> {
 }
 
 Deno.test("ByteReader: reads across chunk boundaries", async () => {
-  const r = new ByteReader(streamOf(new Uint8Array([1, 2]), new Uint8Array([3, 4, 5])));
+  const r = new ByteReader(
+    streamOf(new Uint8Array([1, 2]), new Uint8Array([3, 4, 5])),
+  );
   assertEquals(Array.from((await r.readExact(3))!), [1, 2, 3]);
   assertEquals(Array.from((await r.readExact(2))!), [4, 5]);
   assertEquals(await r.readExact(1), null, "clean EOF gives null");

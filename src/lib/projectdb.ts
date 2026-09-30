@@ -42,7 +42,9 @@ function sqlErr(e: unknown): never {
 // that overload, hence this narrow facade over StatementSync.
 interface RawStmt {
   all(...args: unknown[]): unknown[];
-  run(...args: unknown[]): { changes: number | bigint; lastInsertRowid: number | bigint };
+  run(
+    ...args: unknown[]
+  ): { changes: number | bigint; lastInsertRowid: number | bigint };
   columns(): { name: string }[];
   setReadBigInts(v: boolean): void;
 }
@@ -51,7 +53,9 @@ function bindArgs(params?: Params): unknown[] {
   if (params === undefined) return [];
   if (Array.isArray(params)) return params.map(bindValue);
   const named: { [k: string]: SqlValue } = {};
-  for (const [key, value] of Object.entries(params)) named[key] = bindValue(value);
+  for (const [key, value] of Object.entries(params)) {
+    named[key] = bindValue(value);
+  }
   return [named];
 }
 
@@ -69,7 +73,7 @@ export class ProjectDb {
   }
 
   query(sql: string, params?: Params): QueryResult {
-    const stmt = this.#prepare(sql, params);
+    const stmt = this.#prepare(sql);
     try {
       const rows = stmt.all(...bindArgs(params)) as Record<string, SqlValue>[];
       return {
@@ -86,7 +90,7 @@ export class ProjectDb {
   }
 
   exec(sql: string, params?: Params): ExecResult {
-    const stmt = this.#prepare(sql, params);
+    const stmt = this.#prepare(sql);
     try {
       const r = stmt.run(...bindArgs(params));
       return {
@@ -137,10 +141,13 @@ export class ProjectDb {
 
   #runOne(s: Statement): StmtResult {
     const params = s.params;
-    const stmt = this.#prepare(s.sql, params);
+    const stmt = this.#prepare(s.sql);
     try {
       if (this.#columns(stmt).length > 0) {
-        const rows = stmt.all(...bindArgs(params)) as Record<string, SqlValue>[];
+        const rows = stmt.all(...bindArgs(params)) as Record<
+          string,
+          SqlValue
+        >[];
         return {
           columns: this.#columns(stmt),
           rows: rows.map((row) => {
@@ -160,7 +167,7 @@ export class ProjectDb {
     }
   }
 
-  #prepare(sql: string, params?: Params): RawStmt {
+  #prepare(sql: string): RawStmt {
     const text = singleStatement(sql);
     try {
       const stmt = this.#db.prepare(text) as unknown as RawStmt;

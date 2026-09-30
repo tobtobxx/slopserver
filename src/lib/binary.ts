@@ -29,7 +29,9 @@ export class ByteReader {
     await this.#fill(n);
     if (this.#buf.length === 0) return null;
     if (this.#buf.length < n) {
-      throw new Error(`unexpected end of stream (wanted ${n} bytes, got ${this.#buf.length})`);
+      throw new Error(
+        `unexpected end of stream (wanted ${n} bytes, got ${this.#buf.length})`,
+      );
     }
     const out = this.#buf.subarray(0, n);
     this.#buf = this.#buf.subarray(n);
@@ -39,7 +41,9 @@ export class ByteReader {
   async skip(n: number): Promise<void> {
     while (n > 0) {
       const chunk = await this.readExact(Math.min(n, 1 << 16));
-      if (chunk === null) throw new Error("unexpected end of stream while skipping");
+      if (chunk === null) {
+        throw new Error("unexpected end of stream while skipping");
+      }
       n -= chunk.length;
     }
   }

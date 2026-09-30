@@ -28,7 +28,10 @@ Deno.test("loadEnvFile: missing file ok, existing env wins", () => {
   loadEnvFile(`${dir}/missing.env`); // no throw
   Deno.env.set("SLOPTEST_SET", "from-env");
   Deno.env.delete("SLOPTEST_UNSET");
-  Deno.writeTextFileSync(`${dir}/.env`, "SLOPTEST_SET=from-file\nSLOPTEST_UNSET=from-file\n");
+  Deno.writeTextFileSync(
+    `${dir}/.env`,
+    "SLOPTEST_SET=from-file\nSLOPTEST_UNSET=from-file\n",
+  );
   loadEnvFile(`${dir}/.env`);
   assertEquals(Deno.env.get("SLOPTEST_SET"), "from-env");
   assertEquals(Deno.env.get("SLOPTEST_UNSET"), "from-file");
@@ -55,11 +58,17 @@ Deno.test("appendEnvKeys: file without trailing newline", () => {
 });
 
 Deno.test("resolveUrl and resolveSlug precedence", async () => {
-  const { resolveSlug, resolveUrl, DEFAULT_URL } = await import("../src/lib/config.ts");
+  const { resolveSlug, resolveUrl, DEFAULT_URL } = await import(
+    "../src/lib/config.ts"
+  );
   Deno.env.delete("SLOPSERVER_URL");
   Deno.env.delete("SLOPSERVER_SLUG");
   assertEquals(resolveUrl(), DEFAULT_URL);
-  assertEquals(resolveUrl("https://x.example/"), "https://x.example", "trailing slash stripped");
+  assertEquals(
+    resolveUrl("https://x.example/"),
+    "https://x.example",
+    "trailing slash stripped",
+  );
   Deno.env.set("SLOPSERVER_URL", "https://env.example");
   assertEquals(resolveUrl("https://flag.example"), "https://flag.example");
   assertEquals(resolveUrl(), "https://env.example");

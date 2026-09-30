@@ -1,7 +1,7 @@
 import { assertEquals } from "./_assert.ts";
 import { startHost } from "../src/host/server.ts";
 import { gzipBytes } from "../src/lib/gzip.ts";
-import { tarStream, type TarEntry } from "../src/lib/tar.ts";
+import { type TarEntry, tarStream } from "../src/lib/tar.ts";
 import { SYNC_META_ENTRY } from "../src/lib/site.ts";
 
 async function withHost(fn: (url: string) => Promise<void>): Promise<void> {
@@ -17,26 +17,40 @@ async function withHost(fn: (url: string) => Promise<void>): Promise<void> {
 async function api(url: string, method: string, path: string, body?: unknown) {
   const res = await fetch(url + path, {
     method,
-    headers: body !== undefined ? { "content-type": "application/json" } : undefined,
+    headers: body !== undefined
+      ? { "content-type": "application/json" }
+      : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  return { status: res.status, body: await res.json().catch(() => null), headers: res.headers };
+  return {
+    status: res.status,
+    body: await res.json().catch(() => null),
+    headers: res.headers,
+  };
 }
 
-async function syncBody(files: Record<string, string>, meta?: unknown): Promise<Blob> {
+async function syncBody(
+  files: Record<string, string>,
+  meta?: unknown,
+): Promise<Blob> {
   async function* gen(): AsyncGenerator<TarEntry> {
     if (meta !== undefined) {
-      yield { path: SYNC_META_ENTRY, bytes: new TextEncoder().encode(JSON.stringify(meta)) };
+      yield {
+        path: SYNC_META_ENTRY,
+        bytes: new TextEncoder().encode(JSON.stringify(meta)),
+      };
     }
     for (const [path, content] of Object.entries(files)) {
       yield { path, bytes: new TextEncoder().encode(content) };
     }
   }
-  const tar = new Uint8Array(await new Response(tarStream(gen())).arrayBuffer());
+  const tar = new Uint8Array(
+    await new Response(tarStream(gen())).arrayBuffer(),
+  );
   return new Blob([await gzipBytes(tar) as BlobPart]);
 }
 
-async function createProject(url: string, slug: string, description?: string) {
+function createProject(url: string, slug: string, description?: string) {
   return api(url, "POST", "/api/", { slug, description });
 }
 
@@ -65,8 +79,14 @@ Deno.test("server: create, list and delete projects", async () => {
 
     const list = await api(url, "GET", "/api/");
     assertEquals(list.status, 200);
-    assertEquals(list.body.projects.map((p: { slug: string }) => p.slug), ["demo"]);
-    assertEquals(list.body.projects[0].db_bytes > 0, true, "empty db exists after create");
+    assertEquals(list.body.projects.map((p: { slug: string }) => p.slug), [
+      "demo",
+    ]);
+    assertEquals(
+      list.body.projects[0].db_bytes > 0,
+      true,
+      "empty db exists after create",
+    );
 
     const gone = await api(url, "DELETE", "/api/demo");
     assertEquals(gone.status, 200);
@@ -78,7 +98,8 @@ Deno.test("server: data plane query/exec/batch/schema", async () => {
   await withHost(async (url) => {
     await createProject(url, "demo");
     const exec = await api(url, "POST", "/api/demo/exec", {
-      sql: "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT, done BOOLEAN)",
+      sql:
+        "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT, done BOOLEAN)",
     });
     assertEquals(exec.status, 200);
 
@@ -99,7 +120,10 @@ Deno.test("server: data plane query/exec/batch/schema", async () => {
 
     const batch = await api(url, "POST", "/api/demo/batch", [
       { sql: "UPDATE todos SET done = ? WHERE id = ?", params: [true, 1] },
-      { sql: "SELECT count(*) AS open FROM todos WHERE done = ?", params: [false] },
+      {
+        sql: "SELECT count(*) AS open FROM todos WHERE done = ?",
+        params: [false],
+      },
     ]);
     assertEquals(batch.body.results, [
       { changes: 1, last_insert_rowid: 1 },
@@ -107,20 +131,28 @@ Deno.test("server: data plane query/exec/batch/schema", async () => {
     ]);
 
     const schema = await api(url, "GET", "/api/demo/schema");
-    assertEquals(schema.body.tables.map((t: { name: string }) => t.name), ["todos"]);
+    assertEquals(schema.body.tables.map((t: { name: string }) => t.name), [
+      "todos",
+    ]);
 
-    const sqlErr = await api(url, "POST", "/api/demo/query", { sql: "SELECT * FROM missing" });
+    const sqlErr = await api(url, "POST", "/api/demo/query", {
+      sql: "SELECT * FROM missing",
+    });
     assertEquals(sqlErr.status, 400);
     assertEquals(sqlErr.body.error.code, "sql_error");
 
-    const multi = await api(url, "POST", "/api/demo/query", { sql: "SELECT 1; SELECT 2" });
+    const multi = await api(url, "POST", "/api/demo/query", {
+      sql: "SELECT 1; SELECT 2",
+    });
     assertEquals(multi.status, 400);
     assertEquals(multi.body.error.code, "bad_request");
 
     const wrongMethod = await api(url, "GET", "/api/demo/query");
     assertEquals(wrongMethod.status, 405);
 
-    const noProject = await api(url, "POST", "/api/ghost/query", { sql: "SELECT 1" });
+    const noProject = await api(url, "POST", "/api/ghost/query", {
+      sql: "SELECT 1",
+    });
     assertEquals(noProject.status, 404);
     assertEquals(noProject.body.error.code, "project_not_found");
   });
@@ -129,12 +161,16 @@ Deno.test("server: data plane query/exec/batch/schema", async () => {
 Deno.test("server: blob values round trip over the api", async () => {
   await withHost(async (url) => {
     await createProject(url, "demo");
-    await api(url, "POST", "/api/demo/exec", { sql: "CREATE TABLE b (data BLOB)" });
+    await api(url, "POST", "/api/demo/exec", {
+      sql: "CREATE TABLE b (data BLOB)",
+    });
     await api(url, "POST", "/api/demo/exec", {
       sql: "INSERT INTO b VALUES (?)",
       params: [{ blob: "AQI=" }],
     });
-    const q = await api(url, "POST", "/api/demo/query", { sql: "SELECT data FROM b" });
+    const q = await api(url, "POST", "/api/demo/query", {
+      sql: "SELECT data FROM b",
+    });
     assertEquals(q.body.rows, [{ data: { blob: "AQI=" } }]);
   });
 });
@@ -157,7 +193,10 @@ Deno.test("server: static files, redirects and 404", async () => {
     assertEquals(await index.text(), "<h1>hi</h1>");
 
     const js = await fetch(`${url}/demo/app.js`);
-    assertEquals(js.headers.get("content-type"), "text/javascript; charset=utf-8");
+    assertEquals(
+      js.headers.get("content-type"),
+      "text/javascript; charset=utf-8",
+    );
 
     const redirected = await fetch(`${url}/demo`, { redirect: "manual" });
     assertEquals(redirected.status, 301);
@@ -175,7 +214,9 @@ Deno.test("server: static files, redirects and 404", async () => {
     assertEquals((await notFound.json()).error.code, "not_found");
 
     const etag = js.headers.get("etag");
-    const cached = await fetch(`${url}/demo/app.js`, { headers: { "if-none-match": etag! } });
+    const cached = await fetch(`${url}/demo/app.js`, {
+      headers: { "if-none-match": etag! },
+    });
     assertEquals(cached.status, 304);
 
     // fetch's URL parser collapses %2e%2e before the request goes out; what
@@ -191,13 +232,19 @@ Deno.test("server: static files, redirects and 404", async () => {
     const { hostname, port } = new URL(url);
     const conn = await Deno.connect({ hostname, port: Number(port) });
     await conn.write(
-      new TextEncoder().encode("GET /demo/../slopserver.db HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n"),
+      new TextEncoder().encode(
+        "GET /demo/../slopserver.db HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n",
+      ),
     );
     const buf = new Uint8Array(2048);
     const n = (await conn.read(buf)) ?? 0;
     conn.close();
     const raw = new TextDecoder().decode(buf.subarray(0, n));
-    assertEquals(raw.includes("SQLite format"), false, `literal .. must not serve db: ${raw}`);
+    assertEquals(
+      raw.includes("SQLite format"),
+      false,
+      `literal .. must not serve db: ${raw}`,
+    );
     assertEquals(raw.includes("404"), true, raw);
 
     const unknownProject = await fetch(`${url}/ghost/`);
@@ -211,19 +258,34 @@ Deno.test("server: sync, manifest and downloads", async () => {
     await createProject(url, "demo");
     const first = await fetch(`${url}/api/demo/sync`, {
       method: "POST",
-      body: await syncBody({ "index.html": "hello", "old.css": "x" }, { delete: [] }),
+      body: await syncBody({ "index.html": "hello", "old.css": "x" }, {
+        delete: [],
+      }),
     });
     assertEquals(first.status, 200);
-    assertEquals(await first.json(), { put: ["index.html", "old.css"], deleted: [], unchanged: 0, received_bytes: 6 });
+    assertEquals(await first.json(), {
+      put: ["index.html", "old.css"],
+      deleted: [],
+      unchanged: 0,
+      received_bytes: 6,
+    });
 
     const manifest = await api(url, "GET", "/api/demo/manifest");
-    assertEquals(Object.keys(manifest.body.files).sort(), ["index.html", "old.css"]);
+    assertEquals(Object.keys(manifest.body.files).sort(), [
+      "index.html",
+      "old.css",
+    ]);
 
     const second = await fetch(`${url}/api/demo/sync`, {
       method: "POST",
       body: await syncBody({ "app.js": "js" }, { delete: ["old.css"] }),
     });
-    assertEquals(await second.json(), { put: ["app.js"], deleted: ["old.css"], unchanged: 1, received_bytes: 2 });
+    assertEquals(await second.json(), {
+      put: ["app.js"],
+      deleted: ["old.css"],
+      unchanged: 1,
+      received_bytes: 2,
+    });
 
     const tar = await fetch(`${url}/api/demo/site.tar.gz`);
     assertEquals(tar.status, 200);
@@ -235,7 +297,10 @@ Deno.test("server: sync, manifest and downloads", async () => {
     const db = await fetch(`${url}/api/demo/data.sqlite`);
     assertEquals(db.status, 200);
     const dbBytes = new Uint8Array(await db.arrayBuffer());
-    assertEquals(new TextDecoder().decode(dbBytes.subarray(0, 15)), "SQLite format 3");
+    assertEquals(
+      new TextDecoder().decode(dbBytes.subarray(0, 15)),
+      "SQLite format 3",
+    );
   });
 });
 
@@ -263,12 +328,21 @@ Deno.test("server: cors on api, usage counters tick", async () => {
     await fetch(`${url}/demo/a.txt`);
 
     const list = await api(url, "GET", "/api/");
-    assertEquals(list.body.projects[0].requests >= 3, true, "create + sync + 2 static counted");
+    assertEquals(
+      list.body.projects[0].requests >= 3,
+      true,
+      "create + sync + 2 static counted",
+    );
     assertEquals(list.headers.get("access-control-allow-origin"), "*");
 
-    const preflight = await fetch(`${url}/api/demo/query`, { method: "OPTIONS" });
+    const preflight = await fetch(`${url}/api/demo/query`, {
+      method: "OPTIONS",
+    });
     assertEquals(preflight.status, 204);
-    assertEquals(preflight.headers.get("access-control-allow-methods"), "GET, POST, DELETE, OPTIONS");
+    assertEquals(
+      preflight.headers.get("access-control-allow-methods"),
+      "GET, POST, DELETE, OPTIONS",
+    );
 
     const badEncoding = await fetch(`${url}/demo/%zz`);
     assertEquals(badEncoding.status, 400);

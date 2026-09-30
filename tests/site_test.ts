@@ -1,8 +1,13 @@
 import { assertEquals, assertRejects } from "./_assert.ts";
-import { gzipBytes, gunzipBytes, gzipStream } from "../src/lib/gzip.ts";
-import { siteEntries, siteTarGz, syncSite, SYNC_META_ENTRY } from "../src/lib/site.ts";
+import { gunzipBytes, gzipBytes, gzipStream } from "../src/lib/gzip.ts";
+import {
+  siteEntries,
+  siteTarGz,
+  SYNC_META_ENTRY,
+  syncSite,
+} from "../src/lib/site.ts";
 import type { FileMeta } from "../src/lib/registry.ts";
-import { readTar, tarStream, type TarEntry } from "../src/lib/tar.ts";
+import { readTar, type TarEntry, tarStream } from "../src/lib/tar.ts";
 import { sha256Hex } from "../src/lib/hash.ts";
 
 function tmpDirs() {
@@ -10,22 +15,34 @@ function tmpDirs() {
   return { siteDir: `${root}/site`, stagingDir: `${root}/staging`, root };
 }
 
-function tarGzBody(files: Record<string, string>, meta?: unknown): ReadableStream<Uint8Array> {
+function tarGzBody(
+  files: Record<string, string>,
+  meta?: unknown,
+): ReadableStream<Uint8Array> {
   const enc = new TextEncoder();
   async function* gen(): AsyncGenerator<TarEntry> {
-    if (meta !== undefined) yield { path: SYNC_META_ENTRY, bytes: enc.encode(JSON.stringify(meta)) };
-    for (const [path, content] of Object.entries(files)) yield { path, bytes: enc.encode(content) };
+    if (meta !== undefined) {
+      yield { path: SYNC_META_ENTRY, bytes: enc.encode(JSON.stringify(meta)) };
+    }
+    for (const [path, content] of Object.entries(files)) {
+      yield { path, bytes: enc.encode(content) };
+    }
   }
   return gzipStream(tarStream(gen()));
 }
 
 async function hashOf(content: string): Promise<FileMeta> {
-  return { hash: await sha256Hex(new TextEncoder().encode(content)), size: content.length };
+  return {
+    hash: await sha256Hex(new TextEncoder().encode(content)),
+    size: content.length,
+  };
 }
 
 async function readSite(siteDir: string): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for await (const e of siteEntries(siteDir)) out[e.path] = new TextDecoder().decode(e.bytes);
+  for await (const e of siteEntries(siteDir)) {
+    out[e.path] = new TextDecoder().decode(e.bytes);
+  }
   return out;
 }
 
@@ -45,10 +62,15 @@ Deno.test("syncSite: initial upload places files and builds the manifest", async
   const { manifest, result } = await syncSite({
     siteDir,
     stagingDir,
-    body: tarGzBody({ "index.html": "hello", "a/b.txt": "nested" }, { delete: [] }),
+    body: tarGzBody({ "index.html": "hello", "a/b.txt": "nested" }, {
+      delete: [],
+    }),
     manifest: new Map(),
   });
-  assertEquals(await readSite(siteDir), { "index.html": "hello", "a/b.txt": "nested" });
+  assertEquals(await readSite(siteDir), {
+    "index.html": "hello",
+    "a/b.txt": "nested",
+  });
   assertEquals([...manifest.keys()].sort(), ["a/b.txt", "index.html"]);
   assertEquals(manifest.get("index.html"), await hashOf("hello"));
   assertEquals(result.put, ["a/b.txt", "index.html"]);
@@ -62,16 +84,26 @@ Deno.test("syncSite: delta upload keeps unchanged files, applies deletes", async
   const first = await syncSite({
     siteDir,
     stagingDir,
-    body: tarGzBody({ "index.html": "hello", "old.css": "gone soon", "app.js": "v1" }),
+    body: tarGzBody({
+      "index.html": "hello",
+      "old.css": "gone soon",
+      "app.js": "v1",
+    }),
     manifest: new Map(),
   });
   const second = await syncSite({
     siteDir,
     stagingDir: `${stagingDir}-2`,
-    body: tarGzBody({ "app.js": "v2", "new.png": "img" }, { delete: ["old.css"] }),
+    body: tarGzBody({ "app.js": "v2", "new.png": "img" }, {
+      delete: ["old.css"],
+    }),
     manifest: first.manifest,
   });
-  assertEquals(await readSite(siteDir), { "index.html": "hello", "app.js": "v2", "new.png": "img" });
+  assertEquals(await readSite(siteDir), {
+    "index.html": "hello",
+    "app.js": "v2",
+    "new.png": "img",
+  });
   assertEquals(second.result.put, ["app.js", "new.png"]);
   assertEquals(second.result.deleted, ["old.css"]);
   assertEquals(second.result.unchanged, 1, "index.html carried over");
@@ -140,7 +172,9 @@ Deno.test("siteTarGz: export mirrors the site directory", async () => {
   await Deno.mkdir(`${siteDir}/sub`, { recursive: true });
   await Deno.writeTextFile(`${siteDir}/index.html`, "hello");
   await Deno.writeTextFile(`${siteDir}/sub/x.txt`, "nested");
-  const tar = await gunzipBytes(new Uint8Array(await new Response(siteTarGz(siteDir)).arrayBuffer()));
+  const tar = await gunzipBytes(
+    new Uint8Array(await new Response(siteTarGz(siteDir)).arrayBuffer()),
+  );
   const got: Record<string, string> = {};
   for await (const e of readTar(new Blob([tar as BlobPart]).stream())) {
     got[e.path] = new TextDecoder().decode(e.bytes);
@@ -150,5 +184,8 @@ Deno.test("siteTarGz: export mirrors the site directory", async () => {
 
 Deno.test("gzipBytes round trip", async () => {
   const bytes = new Uint8Array([1, 2, 3, 4, 5]);
-  assertEquals(Array.from(await gunzipBytes(await gzipBytes(bytes))), Array.from(bytes));
+  assertEquals(
+    Array.from(await gunzipBytes(await gzipBytes(bytes))),
+    Array.from(bytes),
+  );
 });

@@ -46,7 +46,9 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 if (data === "") fail("missing --data");
-if (!Number.isInteger(port) || port < 0 || port > 65535) fail(`bad port: ${port}`);
+if (!Number.isInteger(port) || port < 0 || port > 65535) {
+  fail(`bad port: ${port}`);
+}
 
 const running = await startHost({ data, host, port });
 console.log(`slopserver-host listening on ${running.url} (data: ${data})`);

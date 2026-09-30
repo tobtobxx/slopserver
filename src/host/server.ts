@@ -20,8 +20,13 @@
 import { SlopError, toErrorResponse } from "../lib/errors.ts";
 import type { Json } from "../lib/jsonsql.ts";
 import { joinUnder, safeRelPath } from "../lib/pathsafe.ts";
-import { closeProjectDb, getProjectDb, type Params, type Statement } from "../lib/projectdb.ts";
-import { Registry, type ProjectInfo } from "../lib/registry.ts";
+import {
+  closeProjectDb,
+  getProjectDb,
+  type Params,
+  type Statement,
+} from "../lib/projectdb.ts";
+import { type ProjectInfo, Registry } from "../lib/registry.ts";
 import { siteTarGz, syncSite } from "../lib/site.ts";
 import { assertValidSlug, isValidSlug } from "../lib/slug.ts";
 
@@ -78,12 +83,20 @@ function methodNotAllowed(req: Request): never {
 }
 
 function escapeHtml(s: string): string {
-  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(
+    ">",
+    "&gt;",
+  ).replaceAll('"', "&quot;");
 }
 
-async function readJson(req: Request, maxBytes = 1 << 20): Promise<Record<string, Json>> {
+async function readJson(
+  req: Request,
+  maxBytes = 1 << 20,
+): Promise<Record<string, Json>> {
   const text = await req.text();
-  if (text.length > maxBytes) throw new SlopError("too_large", "request body too large");
+  if (text.length > maxBytes) {
+    throw new SlopError("too_large", "request body too large");
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text === "" ? "{}" : text);
@@ -96,31 +109,49 @@ async function readJson(req: Request, maxBytes = 1 << 20): Promise<Record<string
   return parsed as Record<string, Json>;
 }
 
-async function readJsonArray(req: Request, maxBytes = 1 << 20): Promise<Json[]> {
+async function readJsonArray(
+  req: Request,
+  maxBytes = 1 << 20,
+): Promise<Json[]> {
   const text = await req.text();
-  if (text.length > maxBytes) throw new SlopError("too_large", "request body too large");
+  if (text.length > maxBytes) {
+    throw new SlopError("too_large", "request body too large");
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new SlopError("bad_request", "request body is not valid json");
   }
-  if (!Array.isArray(parsed)) throw new SlopError("bad_request", "expected a json array");
+  if (!Array.isArray(parsed)) {
+    throw new SlopError("bad_request", "expected a json array");
+  }
   return parsed as Json[];
 }
 
-function parseParams(value: Json | undefined, what: string): Params | undefined {
+function parseParams(
+  value: Json | undefined,
+  what: string,
+): Params | undefined {
   if (value === undefined) return undefined;
   if (Array.isArray(value)) return value as Params;
   if (value !== null && typeof value === "object") return value as Params;
-  throw new SlopError("bad_request", `${what}.params must be an array or object`);
+  throw new SlopError(
+    "bad_request",
+    `${what}.params must be an array or object`,
+  );
 }
 
-function fileResponse(path: string, headers: Record<string, string>): Promise<Response> {
+function fileResponse(
+  path: string,
+  headers: Record<string, string>,
+): Promise<Response> {
   return Deno.open(path, { read: true }).then((file) =>
     new Response(file.readable, { headers })
   ).catch((e) => {
-    if (e instanceof Deno.errors.NotFound) throw new SlopError("not_found", `not found: ${path}`);
+    if (e instanceof Deno.errors.NotFound) {
+      throw new SlopError("not_found", `not found: ${path}`);
+    }
     throw e;
   });
 }
@@ -163,22 +194,34 @@ function projectJson(data: string, registry: Registry, p: ProjectInfo) {
 
 function requireProject(registry: Registry, slug: string): ProjectInfo {
   const p = registry.getProject(slug);
-  if (!p) throw new SlopError("project_not_found", `no such project: ${JSON.stringify(slug)}`);
+  if (!p) {
+    throw new SlopError(
+      "project_not_found",
+      `no such project: ${JSON.stringify(slug)}`,
+    );
+  }
   return p;
 }
 
 // --- request handlers ---
 
-async function handleApiCollection(deps: Deps, req: Request): Promise<Response> {
+async function handleApiCollection(
+  deps: Deps,
+  req: Request,
+): Promise<Response> {
   if (req.method === "GET") {
     return json(200, {
-      projects: deps.registry.listProjects().map((p) => projectJson(deps.data, deps.registry, p)),
+      projects: deps.registry.listProjects().map((p) =>
+        projectJson(deps.data, deps.registry, p)
+      ),
     });
   }
   if (req.method === "POST") {
     const body = await readJson(req);
     const slug = body.slug;
-    if (typeof slug !== "string") throw new SlopError("bad_request", "missing slug");
+    if (typeof slug !== "string") {
+      throw new SlopError("bad_request", "missing slug");
+    }
     const description = body.description ?? "";
     if (typeof description !== "string") {
       throw new SlopError("bad_request", "description must be a string");
@@ -193,7 +236,8 @@ async function handleApiCollection(deps: Deps, req: Request): Promise<Response> 
     } catch (e) {
       closeProjectDb(projectDbPath(deps.data, slug));
       deps.registry.deleteProject(slug);
-      await Deno.remove(`${deps.data}/projects/${slug}`, { recursive: true }).catch(() => {});
+      await Deno.remove(`${deps.data}/projects/${slug}`, { recursive: true })
+        .catch(() => {});
       throw e;
     }
     return json(201, { project: projectJson(deps.data, deps.registry, info) });
@@ -201,7 +245,12 @@ async function handleApiCollection(deps: Deps, req: Request): Promise<Response> 
   methodNotAllowed(req);
 }
 
-async function handleApiProject(deps: Deps, req: Request, slug: string, rest: string[]): Promise<Response> {
+async function handleApiProject(
+  deps: Deps,
+  req: Request,
+  slug: string,
+  rest: string[],
+): Promise<Response> {
   requireProject(deps.registry, slug);
   deps.registry.incrementRequests(slug);
 
@@ -209,7 +258,8 @@ async function handleApiProject(deps: Deps, req: Request, slug: string, rest: st
     if (req.method === "DELETE") {
       closeProjectDb(projectDbPath(deps.data, slug));
       deps.registry.deleteProject(slug);
-      await Deno.remove(`${deps.data}/projects/${slug}`, { recursive: true }).catch(() => {});
+      await Deno.remove(`${deps.data}/projects/${slug}`, { recursive: true })
+        .catch(() => {});
       return json(200, { deleted: slug });
     }
     methodNotAllowed(req);
@@ -231,31 +281,53 @@ async function handleApiProject(deps: Deps, req: Request, slug: string, rest: st
       if (action === "batch") {
         const body = await readJsonArray(req);
         const stmts: Statement[] = body.map((entry) => {
-          if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
-            throw new SlopError("bad_request", "batch entries must be {sql, params?} objects");
+          if (
+            entry === null || typeof entry !== "object" || Array.isArray(entry)
+          ) {
+            throw new SlopError(
+              "bad_request",
+              "batch entries must be {sql, params?} objects",
+            );
           }
           const stmt = entry as { sql?: Json; params?: Json };
-          if (typeof stmt.sql !== "string") throw new SlopError("bad_request", "batch entry missing sql");
-          return { sql: stmt.sql, params: parseParams(stmt.params, "batch entry") };
+          if (typeof stmt.sql !== "string") {
+            throw new SlopError("bad_request", "batch entry missing sql");
+          }
+          return {
+            sql: stmt.sql,
+            params: parseParams(stmt.params, "batch entry"),
+          };
         });
         return json(200, { results: db.batch(stmts) });
       }
       const body = await readJson(req);
-      if (typeof body.sql !== "string") throw new SlopError("bad_request", "missing sql");
+      if (typeof body.sql !== "string") {
+        throw new SlopError("bad_request", "missing sql");
+      }
       const params = parseParams(body.params, "body");
-      return json(200, action === "query" ? db.query(body.sql, params) : db.exec(body.sql, params));
+      return json(
+        200,
+        action === "query"
+          ? db.query(body.sql, params)
+          : db.exec(body.sql, params),
+      );
     }
     case "manifest": {
       if (req.method !== "GET") methodNotAllowed(req);
       const files: Record<string, { hash: string; size: number }> = {};
-      for (const [path, meta] of deps.registry.getManifest(slug)) files[path] = meta;
+      for (const [path, meta] of deps.registry.getManifest(slug)) {
+        files[path] = meta;
+      }
       return json(200, { files });
     }
     case "sync": {
       if (req.method !== "POST") methodNotAllowed(req);
       if (!req.body) throw new SlopError("bad_request", "missing request body");
       if (deps.syncing.has(slug)) {
-        throw new SlopError("project_exists", `a sync for ${JSON.stringify(slug)} is already running`);
+        throw new SlopError(
+          "project_exists",
+          `a sync for ${JSON.stringify(slug)} is already running`,
+        );
       }
       deps.syncing.add(slug);
       try {
@@ -292,7 +364,10 @@ async function handleApiProject(deps: Deps, req: Request, slug: string, rest: st
       });
     }
     default:
-      throw new SlopError("not_found", `unknown api action: ${JSON.stringify(action)}`);
+      throw new SlopError(
+        "not_found",
+        `unknown api action: ${JSON.stringify(action)}`,
+      );
   }
 }
 
@@ -317,13 +392,19 @@ async function handleStatic(
 
   const rel = rest.length === 0 ? "index.html" : safeRelPath(rest);
   if (rest.length === 0 && !pathname.endsWith("/")) {
-    return new Response(null, { status: 301, headers: { location: `${pathname}/` } });
+    return new Response(null, {
+      status: 301,
+      headers: { location: `${pathname}/` },
+    });
   }
   let filePath = joinUnder(root, rel);
   let stat = await Deno.stat(filePath).catch(() => null);
   if (stat?.isDirectory) {
     if (!pathname.endsWith("/")) {
-      return new Response(null, { status: 301, headers: { location: `${pathname}/` } });
+      return new Response(null, {
+        status: 301,
+        headers: { location: `${pathname}/` },
+      });
     }
     filePath = joinUnder(root, `${rel}/index.html`);
     stat = await Deno.stat(filePath).catch(() => null);
@@ -389,7 +470,11 @@ function withCors(res: Response, isApi: boolean): Response {
   if (!isApi) return res;
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(CORS_HEADERS)) headers.set(k, v);
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
 }
 
 async function route(deps: Deps, req: Request): Promise<Response> {
@@ -433,7 +518,8 @@ export async function startHost(opts: HostOptions): Promise<RunningHost> {
   let resolveReady: (url: string) => void = () => {};
   const ready = new Promise<string>((r) => (resolveReady = r));
 
-  const isApiPath = (req: Request) => new URL(req.url).pathname.startsWith("/api");
+  const isApiPath = (req: Request) =>
+    new URL(req.url).pathname.startsWith("/api");
   const server = Deno.serve(
     {
       hostname: opts.host,
@@ -441,10 +527,12 @@ export async function startHost(opts: HostOptions): Promise<RunningHost> {
       onListen: (addr) => resolveReady(`http://${addr.hostname}:${addr.port}`),
     },
     (req) =>
-      route(deps, req).then((res) => withCors(res, isApiPath(req))).catch((e) => {
-        const { status, body } = toErrorResponse(e);
-        return withCors(json(status, body), isApiPath(req));
-      }),
+      route(deps, req).then((res) => withCors(res, isApiPath(req))).catch(
+        (e) => {
+          const { status, body } = toErrorResponse(e);
+          return withCors(json(status, body), isApiPath(req));
+        },
+      ),
   );
 
   return {

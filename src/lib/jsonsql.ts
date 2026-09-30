@@ -9,7 +9,9 @@
 
 import { SlopError } from "./errors.ts";
 
-export type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
+export type Json = null | boolean | number | string | Json[] | {
+  [k: string]: Json;
+};
 export type SqlValue = null | number | bigint | string | Uint8Array;
 
 export function toBase64(u8: Uint8Array): string {
@@ -32,7 +34,8 @@ export function fromBase64(b64: string): Uint8Array {
 
 function isBlob(v: object): v is { blob: string } {
   const keys = Object.keys(v);
-  return keys.length === 1 && keys[0] === "blob" && typeof (v as { blob?: unknown }).blob === "string";
+  return keys.length === 1 && keys[0] === "blob" &&
+    typeof (v as { blob?: unknown }).blob === "string";
 }
 
 export function bindValue(v: Json): SqlValue {
@@ -51,14 +54,17 @@ export function bindValue(v: Json): SqlValue {
   }
   throw new SlopError(
     "bad_request",
-    `cannot bind ${JSON.stringify(v)}; use null, boolean, number, string or {"blob": "<base64>"}`,
+    `cannot bind ${
+      JSON.stringify(v)
+    }; use null, boolean, number, string or {"blob": "<base64>"}`,
   );
 }
 
 export function encodeValue(v: SqlValue): Json {
   if (v === null) return null;
   if (typeof v === "bigint") {
-    return v >= BigInt(Number.MIN_SAFE_INTEGER) && v <= BigInt(Number.MAX_SAFE_INTEGER)
+    return v >= BigInt(Number.MIN_SAFE_INTEGER) &&
+        v <= BigInt(Number.MAX_SAFE_INTEGER)
       ? Number(v)
       : v.toString();
   }

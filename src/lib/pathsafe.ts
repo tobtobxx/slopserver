@@ -37,7 +37,10 @@ export function joinUnder(root: string, rel: string): string {
   const full = `${root}/${safe}`;
   const rootPrefix = root.endsWith("/") ? root : root + "/";
   if (!full.startsWith(rootPrefix)) {
-    throw new SlopError("bad_request", `path ${JSON.stringify(rel)} escapes the root`);
+    throw new SlopError(
+      "bad_request",
+      `path ${JSON.stringify(rel)} escapes the root`,
+    );
   }
   return full;
 }

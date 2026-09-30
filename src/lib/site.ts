@@ -8,7 +8,7 @@ import { gunzipStream, gzipStream } from "./gzip.ts";
 import { sha256HexFile } from "./hash.ts";
 import { joinUnder, relPathFromString } from "./pathsafe.ts";
 import type { FileMeta } from "./registry.ts";
-import { readTar, tarStream, type TarEntry } from "./tar.ts";
+import { readTar, type TarEntry, tarStream } from "./tar.ts";
 import { SlopError } from "./errors.ts";
 
 export const SYNC_META_ENTRY = "_slop_sync.json";
@@ -83,14 +83,20 @@ export async function syncSite(opts: {
       const dest = joinUnder(inDir, rel);
       await ensureParent(dest);
       await Deno.writeFile(dest, entry.bytes);
-      put.set(rel, { hash: await sha256HexFile(dest), size: entry.bytes.length });
+      put.set(rel, {
+        hash: await sha256HexFile(dest),
+        size: entry.bytes.length,
+      });
     }
 
     const deleted = (meta.delete ?? []).map((p) => relPathFromString(p));
     const deletedSet = new Set(deleted);
     for (const p of deletedSet) {
       if (put.has(p)) {
-        throw new SlopError("bad_request", `path ${JSON.stringify(p)} is both uploaded and deleted`);
+        throw new SlopError(
+          "bad_request",
+          `path ${JSON.stringify(p)} is both uploaded and deleted`,
+        );
       }
     }
 

@@ -10,7 +10,10 @@ export function parseEnv(text: string): Map<string, string> {
     const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (!m) continue;
     let value = m[2];
-    if (value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.at(-1) === value[0]) {
+    if (
+      value.length >= 2 && (value[0] === '"' || value[0] === "'") &&
+      value.at(-1) === value[0]
+    ) {
       value = value.slice(1, -1);
     }
     out.set(m[1], value);
@@ -39,7 +42,10 @@ function formatValue(value: string): string {
 
 // Append keys missing from the file, leave existing entries untouched.
 // Returns the keys actually written.
-export function appendEnvKeys(path: string, entries: Record<string, string>): string[] {
+export function appendEnvKeys(
+  path: string,
+  entries: Record<string, string>,
+): string[] {
   let text = "";
   try {
     text = Deno.readTextFileSync(path);

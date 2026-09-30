@@ -1,11 +1,16 @@
 import { assertEquals, assertRejects } from "./_assert.ts";
-import { gunzipStream, gzipBytes, gunzipBytes } from "../src/lib/gzip.ts";
-import { readTar, tarStream, type TarEntry } from "../src/lib/tar.ts";
+import { gunzipBytes, gunzipStream, gzipBytes } from "../src/lib/gzip.ts";
+import { readTar, type TarEntry, tarStream } from "../src/lib/tar.ts";
 
-function streamOfBytes(bytes: Uint8Array, chunkSize = 7): ReadableStream<Uint8Array> {
+function streamOfBytes(
+  bytes: Uint8Array,
+  chunkSize = 7,
+): ReadableStream<Uint8Array> {
   return new ReadableStream<Uint8Array>({
     start(c) {
-      for (let i = 0; i < bytes.length; i += chunkSize) c.enqueue(bytes.subarray(i, i + chunkSize));
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        c.enqueue(bytes.subarray(i, i + chunkSize));
+      }
       c.close();
     },
   });
@@ -16,12 +21,16 @@ async function* entriesOf(entries: TarEntry[]): AsyncGenerator<TarEntry> {
 }
 
 async function tarBytes(entries: TarEntry[]): Promise<Uint8Array> {
-  return new Uint8Array(await new Response(tarStream(entriesOf(entries))).arrayBuffer());
+  return new Uint8Array(
+    await new Response(tarStream(entriesOf(entries))).arrayBuffer(),
+  );
 }
 
 async function readAll(tar: ReadableStream<Uint8Array>): Promise<TarEntry[]> {
   const out: TarEntry[] = [];
-  for await (const e of readTar(tar)) out.push({ path: e.path, bytes: e.bytes });
+  for await (const e of readTar(tar)) {
+    out.push({ path: e.path, bytes: e.bytes });
+  }
   return out;
 }
 
@@ -37,7 +46,10 @@ const SAMPLE: TarEntry[] = [
 ];
 
 Deno.test("tar: round trip", async () => {
-  assertEquals(simplify(await readAll(tarStream(entriesOf(SAMPLE)))), simplify(SAMPLE));
+  assertEquals(
+    simplify(await readAll(tarStream(entriesOf(SAMPLE)))),
+    simplify(SAMPLE),
+  );
 });
 
 Deno.test("tar: deterministic bytes", async () => {
@@ -48,7 +60,9 @@ Deno.test("tar: deterministic bytes", async () => {
 
 Deno.test("tar: paths longer than 100 bytes split into prefix", async () => {
   const long = `${"d".repeat(80)}/${"f".repeat(60)}.txt`;
-  const got = await readAll(tarStream(entriesOf([{ path: long, bytes: new Uint8Array([9]) }])));
+  const got = await readAll(
+    tarStream(entriesOf([{ path: long, bytes: new Uint8Array([9]) }])),
+  );
   assertEquals(got[0].path, long);
 });
 
@@ -84,5 +98,8 @@ Deno.test("tar through gzip round trip", async () => {
   assertEquals(simplify(await readAll(streamOfBytes(back))), simplify(SAMPLE));
   const stream = gunzipStream(streamOfBytes(gz));
   assertEquals(simplify(await readAll(stream)), simplify(SAMPLE));
-  assertEquals(await gunzipStream(streamOfBytes(gz)) instanceof ReadableStream, true);
+  assertEquals(
+    await gunzipStream(streamOfBytes(gz)) instanceof ReadableStream,
+    true,
+  );
 });

@@ -43,10 +43,18 @@ export interface ErrorEnvelope {
   error: { code: string; message: string };
 }
 
-export function toErrorResponse(err: unknown): { status: number; body: ErrorEnvelope } {
+export function toErrorResponse(
+  err: unknown,
+): { status: number; body: ErrorEnvelope } {
   if (err instanceof SlopError) {
-    return { status: err.status, body: { error: { code: err.code, message: err.message } } };
+    return {
+      status: err.status,
+      body: { error: { code: err.code, message: err.message } },
+    };
   }
   console.error("internal error:", err);
-  return { status: 500, body: { error: { code: "internal", message: "internal error" } } };
+  return {
+    status: 500,
+    body: { error: { code: "internal", message: "internal error" } },
+  };
 }

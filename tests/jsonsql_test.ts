@@ -1,5 +1,10 @@
 import { assertEquals, assertThrows } from "./_assert.ts";
-import { bindValue, encodeValue, fromBase64, toBase64 } from "../src/lib/jsonsql.ts";
+import {
+  bindValue,
+  encodeValue,
+  fromBase64,
+  toBase64,
+} from "../src/lib/jsonsql.ts";
 
 Deno.test("base64 round trip", () => {
   const bytes = new Uint8Array([0, 1, 2, 250, 255]);
@@ -23,7 +28,11 @@ Deno.test("bindValue: scalars", () => {
 });
 
 Deno.test("bindValue: blobs and rejects", () => {
-  assertEquals(Array.from(bindValue({ blob: "AAEC" }) as Uint8Array), [0, 1, 2]);
+  assertEquals(Array.from(bindValue({ blob: "AAEC" }) as Uint8Array), [
+    0,
+    1,
+    2,
+  ]);
   assertThrows(() => bindValue([1, 2] as never), "cannot bind");
   assertThrows(() => bindValue({ a: 1 } as never), "cannot bind");
   assertThrows(() => bindValue({ blob: 5 } as never), "cannot bind");
@@ -34,7 +43,11 @@ Deno.test("encodeValue: scalars and big ints", () => {
   assertEquals(encodeValue(5.5), 5.5);
   assertEquals(encodeValue("x"), "x");
   assertEquals(encodeValue(5n), 5);
-  assertEquals(encodeValue(9007199254740993n), "9007199254740993", "unsafe integers become strings");
+  assertEquals(
+    encodeValue(9007199254740993n),
+    "9007199254740993",
+    "unsafe integers become strings",
+  );
   assertEquals(encodeValue(-9007199254740993n), "-9007199254740993");
   assertEquals(encodeValue(new Uint8Array([1, 2])), { blob: "AQI=" });
 });

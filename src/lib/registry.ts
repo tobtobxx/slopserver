@@ -56,11 +56,15 @@ export class Registry {
   }
 
   listProjects(): ProjectInfo[] {
-    return this.#db.prepare("SELECT slug, description, created_at FROM projects ORDER BY slug").all() as unknown as ProjectInfo[];
+    return this.#db.prepare(
+      "SELECT slug, description, created_at FROM projects ORDER BY slug",
+    ).all() as unknown as ProjectInfo[];
   }
 
   getProject(slug: string): ProjectInfo | null {
-    const row = this.#db.prepare("SELECT slug, description, created_at FROM projects WHERE slug = ?").get(slug);
+    const row = this.#db.prepare(
+      "SELECT slug, description, created_at FROM projects WHERE slug = ?",
+    ).get(slug);
     return (row as ProjectInfo | undefined) ?? null;
   }
 
@@ -68,14 +72,19 @@ export class Registry {
   createProject(slug: string, description: string): ProjectInfo {
     assertValidSlug(slug);
     if (this.getProject(slug)) {
-      throw new SlopError("project_exists", `project ${JSON.stringify(slug)} already exists`);
+      throw new SlopError(
+        "project_exists",
+        `project ${JSON.stringify(slug)} already exists`,
+      );
     }
     const info: ProjectInfo = {
       slug,
       description,
       created_at: new Date().toISOString(),
     };
-    this.#db.prepare("INSERT INTO projects (slug, description, created_at) VALUES (?, ?, ?)").run(
+    this.#db.prepare(
+      "INSERT INTO projects (slug, description, created_at) VALUES (?, ?, ?)",
+    ).run(
       info.slug,
       info.description,
       info.created_at,
@@ -97,7 +106,9 @@ export class Registry {
   }
 
   getManifest(slug: string): Map<string, FileMeta> {
-    const rows = this.#db.prepare("SELECT path, hash, size FROM files WHERE slug = ?").all(slug) as unknown as {
+    const rows = this.#db.prepare(
+      "SELECT path, hash, size FROM files WHERE slug = ?",
+    ).all(slug) as unknown as {
       path: string;
       hash: string;
       size: number;
@@ -110,8 +121,12 @@ export class Registry {
     this.#db.exec("BEGIN");
     try {
       this.#db.prepare("DELETE FROM files WHERE slug = ?").run(slug);
-      const ins = this.#db.prepare("INSERT INTO files (slug, path, hash, size) VALUES (?, ?, ?, ?)");
-      for (const [path, meta] of files) ins.run(slug, path, meta.hash, meta.size);
+      const ins = this.#db.prepare(
+        "INSERT INTO files (slug, path, hash, size) VALUES (?, ?, ?, ?)",
+      );
+      for (const [path, meta] of files) {
+        ins.run(slug, path, meta.hash, meta.size);
+      }
       this.#db.exec("COMMIT");
     } catch (e) {
       this.#db.exec("ROLLBACK");
@@ -129,10 +144,14 @@ export class Registry {
   }
 
   getUsage(slug: string): ProjectUsage {
-    const site = this.#db.prepare("SELECT COALESCE(SUM(size), 0) AS s FROM files WHERE slug = ?").get(slug) as {
+    const site = this.#db.prepare(
+      "SELECT COALESCE(SUM(size), 0) AS s FROM files WHERE slug = ?",
+    ).get(slug) as {
       s: number;
     };
-    const req = this.#db.prepare("SELECT COALESCE(SUM(n), 0) AS s FROM requests WHERE slug = ?").get(slug) as {
+    const req = this.#db.prepare(
+      "SELECT COALESCE(SUM(n), 0) AS s FROM requests WHERE slug = ?",
+    ).get(slug) as {
       s: number;
     };
     return { site_bytes: site.s, requests: req.s };

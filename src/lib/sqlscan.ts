@@ -39,7 +39,9 @@ export function splitStatements(sql: string): string[] {
       i = skipQuoted(sql, i, c);
     } else if (c === "[") {
       const end = sql.indexOf("]", i + 1);
-      if (end === -1) throw new SlopError("bad_request", "unterminated [identifier] in sql");
+      if (end === -1) {
+        throw new SlopError("bad_request", "unterminated [identifier] in sql");
+      }
       markToken();
       i = end + 1;
     } else if (c === "-" && sql[i + 1] === "-") {
@@ -47,7 +49,9 @@ export function splitStatements(sql: string): string[] {
       i = end === -1 ? n : end + 1;
     } else if (c === "/" && sql[i + 1] === "*") {
       const end = sql.indexOf("*/", i + 2);
-      if (end === -1) throw new SlopError("bad_request", "unterminated /* comment */ in sql");
+      if (end === -1) {
+        throw new SlopError("bad_request", "unterminated /* comment */ in sql");
+      }
       i = end + 2;
     } else if (c === ";") {
       if (tokenStart >= 0) stmts.push(sql.slice(stmtStart, i).trim());

@@ -1,5 +1,9 @@
-import { assertEquals, assertRejects, assertThrows } from "./_assert.ts";
-import { safeRelPath, relPathFromString, joinUnder } from "../src/lib/pathsafe.ts";
+import { assertEquals, assertThrows } from "./_assert.ts";
+import {
+  joinUnder,
+  relPathFromString,
+  safeRelPath,
+} from "../src/lib/pathsafe.ts";
 
 Deno.test("pathsafe: safeRelPath normalizes", () => {
   assertEquals(safeRelPath(["a", "b"]), "a/b");

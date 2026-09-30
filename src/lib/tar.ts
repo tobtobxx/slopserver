@@ -16,13 +16,22 @@ const decoder = new TextDecoder();
 
 function writeStr(buf: Uint8Array, off: number, s: string, len: number): void {
   const bytes = encoder.encode(s);
-  if (bytes.length > len) throw new SlopError("bad_request", `tar field too long: ${s}`);
+  if (bytes.length > len) {
+    throw new SlopError("bad_request", `tar field too long: ${s}`);
+  }
   buf.set(bytes, off);
 }
 
-function writeOctal(buf: Uint8Array, off: number, len: number, value: number): void {
+function writeOctal(
+  buf: Uint8Array,
+  off: number,
+  len: number,
+  value: number,
+): void {
   const s = value.toString(8).padStart(len - 1, "0");
-  if (s.length > len - 1) throw new SlopError("bad_request", `tar number too big: ${value}`);
+  if (s.length > len - 1) {
+    throw new SlopError("bad_request", `tar number too big: ${value}`);
+  }
   writeStr(buf, off, s, len - 1); // last byte stays NUL
 }
 
@@ -33,7 +42,9 @@ function splitName(path: string): { name: string; prefix: string } {
     if (path[i] !== "/") continue;
     const prefix = path.slice(0, i);
     const rest = path.slice(i + 1);
-    if (encoder.encode(prefix).length <= 155 && encoder.encode(rest).length <= 100) {
+    if (
+      encoder.encode(prefix).length <= 155 && encoder.encode(rest).length <= 100
+    ) {
       return { name: rest, prefix };
     }
   }
@@ -66,7 +77,9 @@ function padding(size: number): Uint8Array | null {
   return rem === 0 ? null : new Uint8Array(BLOCK - rem);
 }
 
-function fromAsyncIterable(it: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
+function fromAsyncIterable(
+  it: AsyncIterable<Uint8Array>,
+): ReadableStream<Uint8Array> {
   const iter = it[Symbol.asyncIterator]();
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -80,7 +93,9 @@ function fromAsyncIterable(it: AsyncIterable<Uint8Array>): ReadableStream<Uint8A
   });
 }
 
-export function tarStream(entries: AsyncIterable<TarEntry>): ReadableStream<Uint8Array> {
+export function tarStream(
+  entries: AsyncIterable<TarEntry>,
+): ReadableStream<Uint8Array> {
   async function* chunks(): AsyncGenerator<Uint8Array> {
     for await (const entry of entries) {
       yield fileHeader(entry.path, entry.bytes.length);
@@ -94,10 +109,16 @@ export function tarStream(entries: AsyncIterable<TarEntry>): ReadableStream<Uint
 }
 
 function parseOctal(buf: Uint8Array, off: number, len: number): number {
-  const s = decoder.decode(buf.subarray(off, off + len)).replace(/[\0 ]+$/, "").trim();
+  const s = decoder.decode(buf.subarray(off, off + len)).replace(/[\0 ]+$/, "")
+    .trim();
   if (s === "") return 0;
   const v = parseInt(s, 8);
-  if (Number.isNaN(v)) throw new SlopError("bad_request", `corrupt tar: bad number ${JSON.stringify(s)}`);
+  if (Number.isNaN(v)) {
+    throw new SlopError(
+      "bad_request",
+      `corrupt tar: bad number ${JSON.stringify(s)}`,
+    );
+  }
   return v;
 }
 
@@ -112,13 +133,18 @@ function verifyChecksum(h: Uint8Array): void {
   let sum = 0;
   for (let i = 0; i < BLOCK; i++) sum += i >= 148 && i < 156 ? 0x20 : h[i];
   if (sum !== stored) {
-    throw new SlopError("bad_request", `corrupt tar: checksum mismatch (${sum} != ${stored})`);
+    throw new SlopError(
+      "bad_request",
+      `corrupt tar: checksum mismatch (${sum} != ${stored})`,
+    );
   }
 }
 
 // Yields regular files. Directory, pax and link entries are consumed and
 // skipped; GNU 'L' long names are honored.
-export async function* readTar(stream: ReadableStream<Uint8Array>): AsyncGenerator<TarEntry> {
+export async function* readTar(
+  stream: ReadableStream<Uint8Array>,
+): AsyncGenerator<TarEntry> {
   const r = new ByteReader(stream);
   let longName: string | null = null;
   while (true) {

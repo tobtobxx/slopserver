@@ -18,6 +18,6 @@ export async function sha256HexFile(path: string): Promise<string> {
   return hash.digest("hex");
 }
 
-export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+export function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
