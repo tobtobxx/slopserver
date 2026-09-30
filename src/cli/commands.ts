@@ -38,12 +38,12 @@ usage:
   slopserver download-db <path.sqlite>         download the sqlite database
   slopserver download <path.tar.gz>            download the online files
 
-environment:
+environment (read from .env if not present):
   $SLOPSERVER_BASE_URL     backend server url (default: ${DEFAULT_URL})
   $SLOPSERVER_SLUG         project slug
 
-The slug and url are read from the environment and from .env in the current
-directory (already set variables win). The create subcommand writes to .env.`;
+The create subcommand writes to .env , so future calls automatically use
+the correct slug, even when no env vars are set.`;
 }
 
 function parseArgs(argv: string[]): { command: string; opts: Options } {
