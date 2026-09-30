@@ -57,25 +57,18 @@ Deno.test("appendEnvKeys: file without trailing newline", () => {
   assertEquals(Deno.readTextFileSync(path), "A=1\nB=2\n");
 });
 
-Deno.test("resolveUrl and resolveSlug precedence", async () => {
+Deno.test("resolveUrl and resolveSlug from the environment", async () => {
   const { resolveSlug, resolveUrl, DEFAULT_URL } = await import(
     "../src/lib/config.ts"
   );
-  Deno.env.delete("SLOPSERVER_URL");
+  Deno.env.delete("SLOPSERVER_BASE_URL");
   Deno.env.delete("SLOPSERVER_SLUG");
   assertEquals(resolveUrl(), DEFAULT_URL);
-  assertEquals(
-    resolveUrl("https://x.example/"),
-    "https://x.example",
-    "trailing slash stripped",
-  );
-  Deno.env.set("SLOPSERVER_URL", "https://env.example");
-  assertEquals(resolveUrl("https://flag.example"), "https://flag.example");
-  assertEquals(resolveUrl(), "https://env.example");
+  Deno.env.set("SLOPSERVER_BASE_URL", "https://env.example/");
+  assertEquals(resolveUrl(), "https://env.example", "trailing slash stripped");
   assertThrows(() => resolveSlug(), "no slug");
   Deno.env.set("SLOPSERVER_SLUG", "env-slug");
   assertEquals(resolveSlug(), "env-slug");
-  assertEquals(resolveSlug("flag-slug"), "flag-slug");
-  Deno.env.delete("SLOPSERVER_URL");
+  Deno.env.delete("SLOPSERVER_BASE_URL");
   Deno.env.delete("SLOPSERVER_SLUG");
 });

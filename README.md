@@ -18,7 +18,7 @@ tailnet, with HTTPS from a reverse proxy.
 nix run .#slopserver-host -- --data /var/lib/slopserver --host 0.0.0.0 --port 8787
 
 # in a project directory
-nix run .#slopserver -- create --slug project-x --description "my thing"
+SLOPSERVER_SLUG=project-x nix run .#slopserver -- create --description "my thing"
 nix run .#slopserver -- upload dist
 nix run .#slopserver -- db-run "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT, done BOOLEAN DEFAULT 0)"
 ```
@@ -41,24 +41,23 @@ const { rows } = await (await fetch("/api/project-x/query", {
 
 | command                         | what it does                                              |
 | ------------------------------- | --------------------------------------------------------- |
-| `create [--description <text>]` | create the project, pin slug + url in ./.env              |
+| `create [--description <text>]` | create the project, write ./.env                          |
 | `info`                          | show config, project status and db schema (read-only)     |
 | `upload <dir>`                  | mirror `<dir>` to the site; delta upload, no dotfiles     |
 | `db-run "<query>"`              | run sql (multi-statement scripts fine), print json result |
 | `download-db <path.sqlite>`     | pull the sqlite database                                  |
 | `download <path.tar.gz>`        | pull the online files                                     |
 
-Flags on every command: `--slug <slug>`, `--url <url>`.
-
 The CLI is deliberately small: no list, no delete. A CLI session can only
-ever touch the project pinned in ./.env, so an agent working with it cannot
-damage other projects. Deleting a project is a dashboard button.
+ever touch the project its environment and ./.env point at, so an agent
+working with it cannot damage other projects. Deleting a project is a
+dashboard button.
 
 ## Config
 
-Slug and url resolution: flag > environment > ./.env > default url
-`https://slop.tobtobxx.net`. Already-set environment variables beat
-./.env. `create` appends `SLOPSERVER_SLUG` and `SLOPSERVER_URL` to ./.env.
+`$SLOPSERVER_SLUG` and `$SLOPSERVER_BASE_URL` are read from the environment
+and from ./.env in the current directory; already-set variables win. Default
+url: `https://slop.tobtobxx.net`. `create` appends both to ./.env.
 
 `upload` mirrors the directory: everything in it goes online, everything
 missing gets deleted. Dot-prefixed files and directories (`.env`, `.git`, …)

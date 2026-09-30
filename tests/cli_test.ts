@@ -5,17 +5,21 @@ import { gunzipBytes } from "../src/lib/gzip.ts";
 import { readTar } from "../src/lib/tar.ts";
 
 // All CLI tests share one chdir'd work directory (chdir is process-global).
+// Config goes through the environment, like the CLI itself: SLOPSERVER_BASE_URL
+// points at the test host, the slug is optional per test.
 async function withCli(
   fn: (url: string, work: string) => Promise<void>,
+  slug?: string,
 ): Promise<void> {
   const data = Deno.makeTempDirSync();
   const work = Deno.makeTempDirSync();
   const host = await startHost({ data, host: "127.0.0.1", port: 0 });
   const oldCwd = Deno.cwd();
   const savedSlug = Deno.env.get("SLOPSERVER_SLUG");
-  const savedUrl = Deno.env.get("SLOPSERVER_URL");
-  Deno.env.delete("SLOPSERVER_SLUG");
-  Deno.env.delete("SLOPSERVER_URL");
+  const savedUrl = Deno.env.get("SLOPSERVER_BASE_URL");
+  Deno.env.set("SLOPSERVER_BASE_URL", host.url);
+  if (slug === undefined) Deno.env.delete("SLOPSERVER_SLUG");
+  else Deno.env.set("SLOPSERVER_SLUG", slug);
   Deno.chdir(work);
   try {
     await fn(host.url, work);
@@ -24,8 +28,8 @@ async function withCli(
     await host.stop();
     if (savedSlug === undefined) Deno.env.delete("SLOPSERVER_SLUG");
     else Deno.env.set("SLOPSERVER_SLUG", savedSlug);
-    if (savedUrl === undefined) Deno.env.delete("SLOPSERVER_URL");
-    else Deno.env.set("SLOPSERVER_URL", savedUrl);
+    if (savedUrl === undefined) Deno.env.delete("SLOPSERVER_BASE_URL");
+    else Deno.env.set("SLOPSERVER_BASE_URL", savedUrl);
   }
 }
 
@@ -56,22 +60,14 @@ async function cli(...argv: string[]): Promise<{ code: number; out: string }> {
 
 Deno.test("cli: create writes .env, repeats fail", async () => {
   await withCli(async (url, work) => {
-    const created = await cli(
-      "create",
-      "--url",
-      url,
-      "--slug",
-      "app",
-      "--description",
-      "my app",
-    );
+    const created = await cli("create", "--description", "my app");
     assertEquals(created.code, 0);
     assertEquals(created.out.includes(`created ${url}/app/`), true);
     const env = Deno.readTextFileSync(`${work}/.env`);
     assertEquals(env.includes("SLOPSERVER_SLUG=app"), true);
-    assertEquals(env.includes(`SLOPSERVER_URL=${url}`), true);
+    assertEquals(env.includes(`SLOPSERVER_BASE_URL=${url}`), true);
 
-    const again = await cli("create", "--url", url, "--slug", "app");
+    const again = await cli("create");
     assertEquals(again.code, 1);
     assertEquals(again.out.includes("already exists"), true);
 
@@ -82,12 +78,12 @@ Deno.test("cli: create writes .env, repeats fail", async () => {
       "app",
       "my app",
     ]]);
-  });
+  }, "app");
 });
 
 Deno.test("cli: create without a slug explains the config", async () => {
-  await withCli(async (url) => {
-    const res = await cli("create", "--url", url);
+  await withCli(async () => {
+    const res = await cli("create");
     assertEquals(res.code, 1);
     assertEquals(res.out.includes("no slug"), true);
   });
@@ -95,7 +91,7 @@ Deno.test("cli: create without a slug explains the config", async () => {
 
 Deno.test("cli: upload mirrors a directory and only sends deltas", async () => {
   await withCli(async (url, work) => {
-    await cli("create", "--url", url, "--slug", "app");
+    await cli("create");
     await Deno.mkdir(`${work}/site/sub`, { recursive: true });
     await Deno.writeTextFile(`${work}/site/index.html`, "hello");
     await Deno.writeTextFile(`${work}/site/app.js`, "v1");
@@ -129,23 +125,26 @@ Deno.test("cli: upload mirrors a directory and only sends deltas", async () => {
 
     const served = await (await fetch(`${url}/app/app.js`)).text();
     assertEquals(served, "v2 changed", "site replaced with local state");
-  });
+  }, "app");
 });
 
 Deno.test("cli: upload reads slug and url from .env", async () => {
   await withCli(async (url, work) => {
-    await cli("create", "--url", url, "--slug", "envslug");
+    await cli("create");
+    // Drop the environment config; only ./.env written by create is left.
+    Deno.env.delete("SLOPSERVER_SLUG");
+    Deno.env.delete("SLOPSERVER_BASE_URL");
     await Deno.writeTextFile(`${work}/only.txt`, "x");
     const res = await cli("upload", ".");
     assertEquals(res.code, 0, res.out);
     const served = await (await fetch(`${url}/envslug/only.txt`)).text();
     assertEquals(served, "x");
-  });
+  }, "envslug");
 });
 
 Deno.test("cli: upload ignores dotfiles and dot-directories", async () => {
   await withCli(async (url, work) => {
-    await cli("create", "--url", url, "--slug", "app");
+    await cli("create");
     await Deno.mkdir(`${work}/site/sub`, { recursive: true });
     await Deno.mkdir(`${work}/site/.git`, { recursive: true });
     await Deno.writeTextFile(`${work}/site/index.html`, "hello");
@@ -165,21 +164,21 @@ Deno.test("cli: upload ignores dotfiles and dot-directories", async () => {
       "index.html",
       "sub/ok.txt",
     ]);
-  });
+  }, "app");
 });
 
 Deno.test("cli: info reports config, project status and db schema", async () => {
   await withCli(async (url) => {
-    await cli("create", "--url", url, "--slug", "app");
+    await cli("create");
     await cli(
       "db-run",
       "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT)",
     );
-    const ok = await cli("info", "--url", url);
+    const ok = await cli("info");
     assertEquals(ok.code, 0, ok.out);
-    assertEquals(ok.out.includes(`url       ${url} (flag)`), true, ok.out);
+    assertEquals(ok.out.includes(`url       ${url} (env)`), true, ok.out);
     assertEquals(ok.out.includes("server    ok, 1 projects"), true, ok.out);
-    assertEquals(ok.out.includes("slug      app (env)"), true, ok.out);
+    assertEquals(ok.out.includes("slug      app"), true, ok.out);
     assertEquals(ok.out.includes(`project   ${url}/app/`), true, ok.out);
     assertEquals(ok.out.includes("site      0 files, 0 bytes"), true, ok.out);
     assertEquals(ok.out.includes("schema    1 tables:"), true, ok.out);
@@ -190,15 +189,16 @@ Deno.test("cli: info reports config, project status and db schema", async () => 
     );
     assertEquals(ok.out.includes("requests"), true, ok.out);
 
-    const missing = await cli("info", "--url", url, "--slug", "nope");
+    Deno.env.set("SLOPSERVER_SLUG", "nope");
+    const missing = await cli("info");
     assertEquals(missing.code, 1);
     assertEquals(missing.out.includes("no project 'nope'"), true, missing.out);
-  });
+  }, "app");
 });
 
 Deno.test("cli: db-run executes scripts and prints json", async () => {
-  await withCli(async (url) => {
-    await cli("create", "--url", url, "--slug", "app");
+  await withCli(async () => {
+    await cli("create");
     const script = await cli(
       "db-run",
       "CREATE TABLE t (x INTEGER); INSERT INTO t VALUES (1); INSERT INTO t VALUES (2);",
@@ -221,12 +221,12 @@ Deno.test("cli: db-run executes scripts and prints json", async () => {
     const failing = await cli("db-run", "SELECT * FROM missing");
     assertEquals(failing.code, 1);
     assertEquals(failing.out.includes("no such table"), true);
-  });
+  }, "app");
 });
 
 Deno.test("cli: download and download-db pull real files", async () => {
-  await withCli(async (url, work) => {
-    await cli("create", "--url", url, "--slug", "app");
+  await withCli(async (_url, work) => {
+    await cli("create");
     await Deno.writeTextFile(`${work}/f.txt`, "content");
     await cli("upload", ".");
     await cli("db-run", "CREATE TABLE t (x)");
@@ -248,14 +248,15 @@ Deno.test("cli: download and download-db pull real files", async () => {
     }
     assertEquals(files["f.txt"], "content");
     assertEquals(files[".env"], undefined, "dotfiles never go online");
-  });
+  }, "app");
 });
 
 Deno.test("cli: help, unknown command, unknown project", async () => {
-  await withCli(async (url) => {
+  await withCli(async () => {
     const help = await cli("--help");
     assertEquals(help.code, 0);
     assertEquals(help.out.includes("slopserver upload <dir>"), true);
+    assertEquals(help.out.includes("$SLOPSERVER_BASE_URL"), true, help.out);
 
     const empty = await cli();
     assertEquals(empty.code, 2, "no command is a usage error");
@@ -264,24 +265,14 @@ Deno.test("cli: help, unknown command, unknown project", async () => {
     assertEquals(unknown.code, 1);
     assertEquals(unknown.out.includes("unknown command"), true);
 
-    const noProject = await cli(
-      "db-run",
-      "SELECT 1",
-      "--url",
-      url,
-      "--slug",
-      "ghost",
-    );
+    Deno.env.set("SLOPSERVER_SLUG", "ghost");
+    const noProject = await cli("db-run", "SELECT 1");
     assertEquals(noProject.code, 1);
     assertEquals(noProject.out.includes("no such project"), true);
 
-    const unreachable = await cli(
-      "create",
-      "--url",
-      "http://127.0.0.1:1",
-      "--slug",
-      "x",
-    );
+    Deno.env.set("SLOPSERVER_BASE_URL", "http://127.0.0.1:1");
+    Deno.env.set("SLOPSERVER_SLUG", "x");
+    const unreachable = await cli("create");
     assertEquals(unreachable.code, 1);
     assertEquals(unreachable.out.includes("cannot reach"), true);
   });

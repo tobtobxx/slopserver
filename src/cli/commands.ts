@@ -8,9 +8,9 @@
 //   download-db pull the sqlite database
 //   download    pull the online files as tar.gz
 //
-// Slug and server url resolution: --flag > environment (./.env is loaded at
-// startup, existing variables win) > default url. `create` appends
-// SLOPSERVER_SLUG and SLOPSERVER_URL to ./.env.
+// Slug and server url resolution: environment (./.env is loaded at startup,
+// existing variables win) > default url. `create` appends SLOPSERVER_SLUG and
+// SLOPSERVER_BASE_URL to ./.env.
 
 import { DEFAULT_URL, resolveSlug, resolveUrl } from "../lib/config.ts";
 import { appendEnvKeys, loadEnvFile } from "../lib/envfile.ts";
@@ -23,8 +23,6 @@ import { type TarEntry, tarStream } from "../lib/tar.ts";
 import { SYNC_META_ENTRY, type SyncMeta } from "../lib/site.ts";
 
 interface Options {
-  url?: string;
-  slug?: string;
   description?: string;
   positionals: string[];
 }
@@ -33,20 +31,19 @@ export function helpText(): string {
   return `slopserver - cli for slopserver-host
 
 usage:
-  slopserver create [--description <text>]     create the project, write ./.env
+  slopserver create [--description <text>]     create the project, write .env
   slopserver info                              show config, status and db schema
   slopserver upload <dir>                      mirror <dir> to the project site
   slopserver db-run "<query>"                  run sql, print json result
   slopserver download-db <path.sqlite>         download the sqlite database
   slopserver download <path.tar.gz>            download the online files
 
-options:
-  --url <url>        server url (default \$SLOPSERVER_URL or ${DEFAULT_URL})
-  --slug <slug>      project slug (default \$SLOPSERVER_SLUG, written by create)
-  --description <t>  project description (create only)
+environment:
+  $SLOPSERVER_BASE_URL     backend server url (default: ${DEFAULT_URL})
+  $SLOPSERVER_SLUG         project slug
 
-The slug and url are read from the environment and from ./.env in the current
-directory (already set variables win). After create, ./.env pins both.`;
+The slug and url are read from the environment and from .env in the current
+directory (already set variables win). The create subcommand writes to .env.`;
 }
 
 function parseArgs(argv: string[]): { command: string; opts: Options } {
@@ -62,12 +59,6 @@ function parseArgs(argv: string[]): { command: string; opts: Options } {
       return v;
     };
     switch (arg) {
-      case "--url":
-        opts.url = needValue();
-        break;
-      case "--slug":
-        opts.slug = needValue();
-        break;
       case "--description":
         opts.description = needValue();
         break;
@@ -174,14 +165,14 @@ async function walkLocal(root: string, prefix = ""): Promise<LocalFile[]> {
 // --- commands ---
 
 async function cmdCreate(url: string, opts: Options): Promise<void> {
-  const slug = resolveSlug(opts.slug);
+  const slug = resolveSlug();
   const created = await apiJson(url, "POST", "/api/", {
     slug,
     description: opts.description ?? "",
   }) as { project: { slug: string } };
   const written = appendEnvKeys(".env", {
     SLOPSERVER_SLUG: created.project.slug,
-    SLOPSERVER_URL: url,
+    SLOPSERVER_BASE_URL: url,
   });
   print(`created ${url}/${created.project.slug}/`);
   if (written.length > 0) print(`wrote ${written.join(", ")} to ./.env`);
@@ -189,12 +180,8 @@ async function cmdCreate(url: string, opts: Options): Promise<void> {
 
 // Smoke test for a deployment: where do url and slug come from, is the server
 // reachable, does the project exist. Read-only, so it is safe to run anywhere.
-async function cmdInfo(url: string, opts: Options): Promise<void> {
-  const urlSource = opts.url
-    ? "flag"
-    : Deno.env.get("SLOPSERVER_URL")
-    ? "env"
-    : "default";
+async function cmdInfo(url: string): Promise<void> {
+  const urlSource = Deno.env.get("SLOPSERVER_BASE_URL") ? "env" : "default";
   const list = await apiJson(url, "GET", "/api/") as {
     projects: {
       slug: string;
@@ -207,9 +194,9 @@ async function cmdInfo(url: string, opts: Options): Promise<void> {
   print(`url       ${url} (${urlSource})`);
   print(`server    ok, ${list.projects.length} projects`);
 
-  const slug = opts.slug ?? Deno.env.get("SLOPSERVER_SLUG");
+  const slug = Deno.env.get("SLOPSERVER_SLUG");
   if (!slug) return;
-  print(`slug      ${slug} (${opts.slug ? "flag" : "env"})`);
+  print(`slug      ${slug}`);
   const project = list.projects.find((p) => p.slug === slug);
   if (!project) {
     throw new SlopError("project_not_found", `no project '${slug}' on ${url}`);
@@ -254,7 +241,7 @@ async function cmdUpload(url: string, opts: Options): Promise<void> {
       "upload needs a directory: slopserver upload <dir>",
     );
   }
-  const slug = resolveSlug(opts.slug);
+  const slug = resolveSlug();
   const stat = await Deno.stat(dir).catch(() => null);
   if (!stat?.isDirectory) {
     throw new SlopError("bad_request", `not a directory: ${dir}`);
@@ -322,7 +309,7 @@ async function cmdDbRun(url: string, opts: Options): Promise<void> {
       'db-run needs a query: slopserver db-run "SELECT ..."',
     );
   }
-  const slug = resolveSlug(opts.slug);
+  const slug = resolveSlug();
   const stmts = splitStatements(query).map((sql) => ({ sql }));
   const body = await apiJson(url, "POST", `/api/${slug}/batch`, stmts) as {
     results: unknown[];
@@ -336,7 +323,7 @@ async function cmdDownloadDb(url: string, opts: Options): Promise<void> {
   if (!target) {
     throw new SlopError("bad_request", "download-db needs a target path");
   }
-  const slug = resolveSlug(opts.slug);
+  const slug = resolveSlug();
   const res = await api(url, "GET", `/api/${slug}/data.sqlite`);
   await Deno.writeFile(target, res.body!);
   print(`wrote ${target} (${(await Deno.stat(target)).size} bytes)`);
@@ -347,7 +334,7 @@ async function cmdDownload(url: string, opts: Options): Promise<void> {
   if (!target) {
     throw new SlopError("bad_request", "download needs a target path");
   }
-  const slug = resolveSlug(opts.slug);
+  const slug = resolveSlug();
   const res = await api(url, "GET", `/api/${slug}/site.tar.gz`);
   await Deno.writeFile(target, res.body!);
   print(`wrote ${target} (${(await Deno.stat(target)).size} bytes)`);
@@ -361,13 +348,13 @@ export async function runCli(argv: string[]): Promise<number> {
       print(helpText());
       return command === "" ? 2 : 0;
     }
-    const url = resolveUrl(opts.url);
+    const url = resolveUrl();
     switch (command) {
       case "create":
         await cmdCreate(url, opts);
         break;
       case "info":
-        await cmdInfo(url, opts);
+        await cmdInfo(url);
         break;
       case "upload":
         await cmdUpload(url, opts);
