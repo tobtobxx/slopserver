@@ -17,6 +17,8 @@
   .card .lbl { color: #777; font-size: .85rem; }
   table { border-collapse: collapse; width: 100%; font-size: .92rem; }
   th, td { text-align: left; padding: .35rem .6rem; border-bottom: 1px solid #eee; }
+  table.projects th, table.projects td { white-space: nowrap; }
+  table.projects td.desc { white-space: normal; }
   th { color: #666; font-weight: 600; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   tr.project { cursor: pointer; }
@@ -49,7 +51,7 @@ project also records a stats snapshot into its own database on every page load
 <div class="hist" id="hist"></div>
 
 <h2>Projects</h2>
-<table>
+<table class="projects">
   <thead><tr>
     <th>slug</th><th>description</th><th>created</th>
     <th class="num">site</th><th class="num">db</th><th class="num">requests</th><th></th>
@@ -75,7 +77,9 @@ function fmtBytes(n) {
 const fmtInt = (n) => Number(n).toLocaleString();
 function fmtDate(s) {
   const d = new Date(s);
-  return isNaN(d) ? s : d.toLocaleString();
+  return isNaN(d) ? s : d.toLocaleString(undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
 }
 
 // --- api ---
@@ -145,7 +149,7 @@ function renderProjects(p) {
   $("#projects").innerHTML = p.map((x) => `
     <tr class="project" data-slug="${x.slug}">
       <td><code>${x.slug}</code></td>
-      <td>${x.description || "<small>—</small>"}</td>
+      <td class="desc">${x.description || "<small>—</small>"}</td>
       <td>${fmtDate(x.created_at)}</td>
       <td class="num">${fmtBytes(x.site_bytes)}</td>
       <td class="num">${fmtBytes(x.db_bytes)}</td>
