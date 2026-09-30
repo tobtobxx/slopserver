@@ -511,8 +511,8 @@ async function route(deps: Deps, req: Request): Promise<Response> {
 
 export async function startHost(opts: HostOptions): Promise<RunningHost> {
   const data = opts.data.replace(/\/+$/, "");
-  const registry = new Registry(`${data}/slopserver.db`);
   await Deno.mkdir(`${data}/projects`, { recursive: true });
+  const registry = new Registry(`${data}/slopserver.db`);
   const deps: Deps = { registry, data, syncing: new Set() };
 
   let resolveReady: (url: string) => void = () => {};
