@@ -120,13 +120,6 @@ Deno.test("projectdb: batch rolls back on error", () => {
   db.close();
 });
 
-Deno.test("projectdb: schema lists user tables with create sql", () => {
-  const db = newDb();
-  assertEquals(db.schema().tables.map((t) => t.name), ["t"]);
-  assertEquals(db.schema().tables[0].sql.includes("CREATE TABLE t"), true);
-  db.close();
-});
-
 Deno.test("projectdb: checkpoint makes the file self-contained", () => {
   const dir = Deno.makeTempDirSync();
   const path = `${dir}/data.db`;

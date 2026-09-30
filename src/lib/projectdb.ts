@@ -121,19 +121,6 @@ export class ProjectDb {
     }
   }
 
-  schema(): { tables: { name: string; sql: string }[] } {
-    try {
-      const rows = this.#db
-        .prepare(
-          "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
-        )
-        .all() as unknown as { name: string; sql: string | null }[];
-      return { tables: rows.map((r) => ({ name: r.name, sql: r.sql ?? "" })) };
-    } catch (e) {
-      sqlErr(e);
-    }
-  }
-
   // Make the on-disk db file self-contained, for download-db.
   checkpoint(): void {
     this.#db.exec("PRAGMA wal_checkpoint(TRUNCATE)");

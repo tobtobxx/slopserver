@@ -171,7 +171,9 @@ async function openDetail(slug) {
     </form>
     <div id="qresult"></div>`;
   try {
-    const { tables } = await api(`/api/${slug}/schema`);
+    const { rows: tables } = await api(`/api/${slug}/query`, "POST", {
+      sql: "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    });
     $("#schema").innerHTML = tables.length
       ? `<p><small>${tables.length} table(s)</small></p><div class="tablelist">` +
         tables.map((t) => `<details><summary>${t.name}</summary><pre>${t.sql}</pre></details>`).join("") +

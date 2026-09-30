@@ -12,7 +12,7 @@ client. Zero remote imports — everything runs on Deno builtins plus
 | `src/host/server.ts`                      | routing, static serving, index page, API handlers                                |
 | `src/cli/commands.ts`                     | the CLI commands, local dir walking, arg parsing                                 |
 | `src/lib/registry.ts`                     | `slopserver.db`: projects, file manifest (sha256 + size), daily request counters |
-| `src/lib/projectdb.ts`                    | per-project SQLite: query/exec/batch/schema, WAL, codec hookup                   |
+| `src/lib/projectdb.ts`                    | per-project SQLite: query/exec/batch, WAL, codec hookup                          |
 | `src/lib/site.ts`                         | delta sync (stage + swap), site export                                           |
 | `src/lib/tar.ts`                          | ustar writer/reader (deterministic, mtime 0)                                     |
 | `src/lib/jsonsql.ts`                      | JSON ↔ SQLite value codec (blob convention)                                      |

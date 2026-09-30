@@ -7,7 +7,6 @@
 //   GET    /api/                      project list + usage
 //   POST   /api/                      create project {slug, description?}
 //   DELETE /api/<slug>                delete project
-//   GET    /api/<slug>/schema         tables + CREATE sql
 //   POST   /api/<slug>/query          {sql, params?} -> {columns, rows}
 //   POST   /api/<slug>/exec           {sql, params?} -> {changes, last_insert_rowid}
 //   POST   /api/<slug>/batch          [{sql, params?}, ...] -> {results: [...]}
@@ -269,10 +268,6 @@ async function handleApiProject(
   const action = rest.join("/");
 
   switch (action) {
-    case "schema": {
-      if (req.method !== "GET") methodNotAllowed(req);
-      return json(200, getProjectDb(dbPath).schema());
-    }
     case "query":
     case "exec":
     case "batch": {

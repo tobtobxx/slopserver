@@ -32,7 +32,6 @@ answers CORS with `*`.
 
 | route                    | body                        | response                              |
 | ------------------------ | --------------------------- | ------------------------------------- |
-| `GET /api/<slug>/schema` | —                           | `{"tables": [{"name", "sql"}]}`       |
 | `POST /api/<slug>/query` | `{"sql", "params"?}`        | `{"columns": [...], "rows": [{...}]}` |
 | `POST /api/<slug>/exec`  | `{"sql", "params"?}`        | `{"changes", "last_insert_rowid"}`    |
 | `POST /api/<slug>/batch` | `[{"sql", "params"?}, ...]` | `{"results": [...]}`                  |

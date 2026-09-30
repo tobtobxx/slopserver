@@ -94,7 +94,7 @@ Deno.test("server: create, list and delete projects", async () => {
   });
 });
 
-Deno.test("server: data plane query/exec/batch/schema", async () => {
+Deno.test("server: data plane query/exec/batch", async () => {
   await withHost(async (url) => {
     await createProject(url, "demo");
     const exec = await api(url, "POST", "/api/demo/exec", {
@@ -128,11 +128,6 @@ Deno.test("server: data plane query/exec/batch/schema", async () => {
     assertEquals(batch.body.results, [
       { changes: 1, last_insert_rowid: 1 },
       { columns: ["open"], rows: [{ open: 0 }] },
-    ]);
-
-    const schema = await api(url, "GET", "/api/demo/schema");
-    assertEquals(schema.body.tables.map((t: { name: string }) => t.name), [
-      "todos",
     ]);
 
     const sqlErr = await api(url, "POST", "/api/demo/query", {
