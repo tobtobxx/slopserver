@@ -21,7 +21,7 @@ nix run .#slopserver -- upload dist
 nix run .#slopserver -- db-run "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT, done BOOLEAN DEFAULT 0)"
 ```
 
-The project is live at `https://slopserver.tobtobxx.net/project-x/`. Frontend JS
+The project is live at `https://slop.tobtobxx.net/project-x/`. Frontend JS
 calls the API same-origin:
 
 ```js
@@ -50,7 +50,7 @@ Flags on every command: `--slug <slug>`, `--url <url>`.
 ## Config
 
 Slug and url resolution: flag > environment > ./.env > default url
-`https://slopserver.tobtobxx.net`. Already-set environment variables beat
+`https://slop.tobtobxx.net`. Already-set environment variables beat
 ./.env. `create` appends `SLOPSERVER_SLUG` and `SLOPSERVER_URL` to ./.env.
 
 `upload` mirrors the directory exactly: everything in it goes online, everything

@@ -3,7 +3,7 @@
 
 import { SlopError } from "./errors.ts";
 
-export const DEFAULT_URL = "https://slopserver.tobtobxx.net";
+export const DEFAULT_URL = "https://slop.tobtobxx.net";
 
 export function resolveUrl(flag?: string): string {
   const url = flag ?? Deno.env.get("SLOPSERVER_URL") ?? DEFAULT_URL;
