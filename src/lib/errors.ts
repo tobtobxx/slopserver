@@ -9,6 +9,7 @@ export type ErrorCode =
   | "not_found"
   | "project_not_found"
   | "project_exists"
+  | "conflict"
   | "sql_error"
   | "too_large"
   | "method_not_allowed"
@@ -21,6 +22,7 @@ const STATUS: Record<ErrorCode, number> = {
   not_found: 404,
   project_not_found: 404,
   project_exists: 409,
+  conflict: 409,
   sql_error: 400,
   too_large: 413,
   method_not_allowed: 405,

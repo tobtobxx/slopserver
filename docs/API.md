@@ -20,7 +20,7 @@ Parameters: a JSON array binds `?` in order, a JSON object binds
 | ----------------------------------------------------------- | ------ |
 | `bad_request`, `invalid_slug`, `reserved_slug`, `sql_error` | 400    |
 | `not_found`, `project_not_found`                            | 404    |
-| `project_exists`                                            | 409    |
+| `project_exists`, `conflict`                                | 409    |
 | `too_large`                                                 | 413    |
 | `method_not_allowed`                                        | 405    |
 | `internal`                                                  | 500    |

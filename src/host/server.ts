@@ -325,7 +325,7 @@ async function handleApiProject(
       if (!req.body) throw new SlopError("bad_request", "missing request body");
       if (deps.syncing.has(slug)) {
         throw new SlopError(
-          "project_exists",
+          "conflict",
           `a sync for ${JSON.stringify(slug)} is already running`,
         );
       }
