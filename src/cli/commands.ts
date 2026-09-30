@@ -2,7 +2,7 @@
 //
 // Commands:
 //   create      create the project and write ./.env
-//   info        show resolved config and project status (read-only)
+//   info        show config, status and db schema (read-only)
 //   upload      mirror a local directory to the project site (delta upload)
 //   db-run      run sql against the project db
 //   download-db pull the sqlite database
@@ -34,7 +34,7 @@ export function helpText(): string {
 
 usage:
   slopserver create [--description <text>]     create the project, write ./.env
-  slopserver info                              show config and project status
+  slopserver info                              show config, status and db schema
   slopserver upload <dir>                      mirror <dir> to the project site
   slopserver db-run "<query>"                  run sql, print json result
   slopserver download-db <path.sqlite>         download the sqlite database
@@ -190,8 +190,10 @@ async function cmdCreate(url: string, opts: Options): Promise<void> {
 // Smoke test for a deployment: where do url and slug come from, is the server
 // reachable, does the project exist. Read-only, so it is safe to run anywhere.
 async function cmdInfo(url: string, opts: Options): Promise<void> {
-  const urlSource = opts.url ? "flag"
-    : Deno.env.get("SLOPSERVER_URL") ? "env"
+  const urlSource = opts.url
+    ? "flag"
+    : Deno.env.get("SLOPSERVER_URL")
+    ? "env"
     : "default";
   const list = await apiJson(url, "GET", "/api/") as {
     projects: {
@@ -217,10 +219,30 @@ async function cmdInfo(url: string, opts: Options): Promise<void> {
   const sizes = Object.values(files);
   print(`project   ${url}/${slug}/`);
   print(`created   ${project.created_at}`);
-  print(`site      ${sizes.length} files, ${
-    sizes.reduce((a, f) => a + f.size, 0)
-  } bytes`);
+  print(
+    `site      ${sizes.length} files, ${
+      sizes.reduce((a, f) => a + f.size, 0)
+    } bytes`,
+  );
   print(`db        ${project.db_bytes} bytes`);
+  // Columns via pragma_table_info, no CREATE-sql parsing. Full CREATE
+  // statements are a `db-run` away.
+  const { rows } = await apiJson(url, "POST", `/api/${slug}/query`, {
+    sql: "SELECT m.name AS tbl, p.name AS col FROM sqlite_master AS m " +
+      "JOIN pragma_table_info(m.name) AS p " +
+      "WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' " +
+      "ORDER BY m.name, p.cid",
+  }) as { rows: { tbl: string; col: string | null }[] };
+  const tables = new Map<string, string[]>();
+  for (const row of rows) {
+    const cols = tables.get(row.tbl) ?? [];
+    if (row.col) cols.push(row.col);
+    tables.set(row.tbl, cols);
+  }
+  print(`schema    ${tables.size} tables:`);
+  for (const [name, cols] of tables) {
+    print(`               ${name} (${cols.join(", ")})`);
+  }
   print(`requests  ${project.requests}`);
 }
 

@@ -42,7 +42,7 @@ const { rows } = await (await fetch("/api/project-x/query", {
 | command                         | what it does                                              |
 | ------------------------------- | --------------------------------------------------------- |
 | `create [--description <text>]` | create the project, pin slug + url in ./.env              |
-| `info`                          | show resolved config and project status (read-only)       |
+| `info`                          | show config, project status and db schema (read-only)     |
 | `upload <dir>`                  | mirror `<dir>` to the site; delta upload, no dotfiles     |
 | `db-run "<query>"`              | run sql (multi-statement scripts fine), print json result |
 | `download-db <path.sqlite>`     | pull the sqlite database                                  |

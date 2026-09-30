@@ -168,9 +168,13 @@ Deno.test("cli: upload ignores dotfiles and dot-directories", async () => {
   });
 });
 
-Deno.test("cli: info reports config and project status", async () => {
-  await withCli(async (url, work) => {
+Deno.test("cli: info reports config, project status and db schema", async () => {
+  await withCli(async (url) => {
     await cli("create", "--url", url, "--slug", "app");
+    await cli(
+      "db-run",
+      "CREATE TABLE todos (id INTEGER PRIMARY KEY, text TEXT)",
+    );
     const ok = await cli("info", "--url", url);
     assertEquals(ok.code, 0, ok.out);
     assertEquals(ok.out.includes(`url       ${url} (flag)`), true, ok.out);
@@ -178,6 +182,12 @@ Deno.test("cli: info reports config and project status", async () => {
     assertEquals(ok.out.includes("slug      app (env)"), true, ok.out);
     assertEquals(ok.out.includes(`project   ${url}/app/`), true, ok.out);
     assertEquals(ok.out.includes("site      0 files, 0 bytes"), true, ok.out);
+    assertEquals(ok.out.includes("schema    1 tables:"), true, ok.out);
+    assertEquals(
+      ok.out.includes("               todos (id, text)"),
+      true,
+      ok.out,
+    );
     assertEquals(ok.out.includes("requests"), true, ok.out);
 
     const missing = await cli("info", "--url", url, "--slug", "nope");
