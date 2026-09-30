@@ -2,7 +2,7 @@
   description = "slopserver: self-hosted slop host - static sites + per-project SQLite over a small JSON API";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
